@@ -3,12 +3,14 @@
 #include <Adafruit_TinyUSB.h>
 #include <WiiChuck.h>
 #include <Adafruit_IS31FL3741.h>
+#include <Adafruit_Debounce.h>
 
 boolean DEBUG = false;
 
 TwoWire *i2c = &Wire;
 Adafruit_NeoPixel neopixel_status(1, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel neopixel_mode(1, PIN_A3, NEO_GRB + NEO_KHZ800);
+Adafruit_Debounce button_mode(PIN_A2, LOW);
 Adafruit_IS31FL3741_QT ledmatrix;
 Accessory acc;
 
@@ -26,6 +28,11 @@ int MODE_COLORS[] = {
   0x00FF00,
   // Magenta for M_use
   0xAA0088,
+};
+String MODE_NAMES[] = {
+  "L-Stick",
+  "D-Pad",
+  "Mouse",
 };
 int mode = MODE_L_STICK;
 
@@ -57,6 +64,9 @@ void setup() {
   neopixel_mode.setBrightness(10);
   neopixel_mode.setPixelColor(0, MODE_COLORS[mode]);
   neopixel_mode.show();
+
+  Serial.println("Set up Big Button to change modes");
+  button_mode.begin();
 
   if (ledmatrix.begin(IS31_ADDRESS, i2c)) {
     Serial.printf("IS41 found at 0x%X\n", IS31_ADDRESS);
@@ -94,6 +104,18 @@ int16_t x_pos_old;
 int16_t y_pos_old;
 
 void loop() {
+  button_mode.update();
+  if (button_mode.justPressed()) {
+    mode += 1;
+    if (mode >= MODE_COUNT) {
+      mode = 0;
+    }
+    Serial.print("Changing mode to ");
+    Serial.println(MODE_NAMES[mode]);
+  }
+  neopixel_mode.setPixelColor(0, MODE_COLORS[mode]);
+  neopixel_mode.show();
+
   if (!acc.isConnected()) {
     Serial.println("Nothing connected, trying again in 2 seconds.");
     neopixel_status.setPixelColor(0, STATUS_RED);
