@@ -10,8 +10,10 @@ Adafruit_NeoPixel neo_big(1, PIN_A3, NEO_GRB + NEO_KHZ800);
 Adafruit_IS31FL3741_QT ledmatrix;
 Accessory acc;
 
-uint8_t IS31_ADDR = 0x30;
 bool isSupportedAccessory = false;
+
+int IS31_ADDRESS = 0x30;
+boolean is31_found = false;
 
 // forward declarations so I can organize how I want to
 void check_accessory();
@@ -35,18 +37,19 @@ void setup() {
 
   check_accessory();
 
-  if (ledmatrix.begin(IS31_ADDR, i2c)) {
-    Serial.printf("IS41 found at 0x%X\n", IS31_ADDR);
+  if (ledmatrix.begin(IS31_ADDRESS, i2c)) {
+    Serial.printf("IS41 found at 0x%X\n", IS31_ADDRESS);
+    is31_found = true;
+    i2c->setClock(800000L);
+    ledmatrix.setLEDscaling(0xFF);
+    ledmatrix.setGlobalCurrent(0x10);
+    ledmatrix.enable(true);
+    ledmatrix.drawPixel(6, 4, MODE_COLORS[mode]);
+    ledmatrix.show();
   } else {
-    Serial.printf("IS41 not found at 0x%X\n", IS31_ADDR);
+    Serial.printf("IS41 not found at 0x%X\n", IS31_ADDRESS);
   }
-  i2c->setClock(800000L);
-  ledmatrix.setLEDscaling(0xFF);
-  ledmatrix.setGlobalCurrent(0x10);
-  Serial.printf("Global current set to: ");
-  Serial.println(ledmatrix.getGlobalCurrent());
-  ledmatrix.enable(true);
-}
+
 
 void loop() {
   if (!acc.isConnected()) {
@@ -88,43 +91,34 @@ void loop() {
     process_classic();
   }
 
-  const auto color_x = jX;
-  const auto color_y = jY;
-  const int val = static_cast<int>(sqrt(pow(color_x, 2) + pow(color_y, 2)));
-  const double t = atan2(color_y, color_x);
-  double d = t * (180.0 / M_PI);
-  d += d < 0 ? 360 : 0;
-  const int hue = static_cast<int>(d) / 360.0 * 65535;
+  if (is31_found) {
+    theta = atan2(jX, jY);
+    degrees = theta * (180.0 / M_PI);
+    degrees += degrees < 0 ? 360 : 0;
+    hue = static_cast<int>(degrees) / 360.0 * 65535;
+    val = static_cast<int>(sqrt(pow(jX, 2) + pow(jY, 2)));
+    if (val == 0) {
+      // use dim white in the middle
+      color = Adafruit_IS31FL3741_QT::ColorHSV(hue, 0, 128);
+    } else {
+      color = Adafruit_IS31FL3741_QT::ColorHSV(hue, 255, 255);
+    }
+    const uint16_t matrix_color_565 = Adafruit_IS31FL3741_QT::color565(color);
 
-  uint32_t color;
-  if (val != 0) {
-    color = Adafruit_IS31FL3741_QT::ColorHSV(hue, 255, 255);
-  } else {
-    // matrix_color = 0xFFFFFF;
-    color = Adafruit_IS31FL3741_QT::ColorHSV(hue, 0, 128);
+    const auto x = static_cast<int>(12.0 * (jX - 127.0) / (255.0) + 6.0);
+    const auto y = static_cast<int>(8.0 * (jY - 127.0) / (255.0) + 4.0);
+    x_pos = 6 + x;
+    y_pos = 4 - y;
+    if (x_pos_old != x_pos || y_pos_old != y_pos) {
+      // clear the old pixel
+      ledmatrix.drawPixel(x_pos_old, y_pos_old, 0x000000);
+      // save the new pixel
+      x_pos_old = x_pos;
+      y_pos_old = y_pos;
+    }
+    ledmatrix.drawPixel(x_pos, y_pos, matrix_color_565);
+    ledmatrix.show();
   }
-
-  if (bC) {
-    neo_small.fill(color);
-  } else {
-    neo_small.clear();
-  }
-  if (bZ) {
-    neo_big.fill(color);
-  } else {
-    neo_big.clear();
-  }
-  neo_small.show();
-  neo_big.show();
-
-  const auto x = (12.0 * (jX - 127.0) / (255.0) + 6.0);
-  const auto y = (8.0 * (jY - 127.0) / (255.0) + 4.0);
-  ledmatrix.fill(0x000000);
-  ledmatrix.drawFastHLine(0, 16, 2, Adafruit_IS31FL3741_QT::color565(0xFF0000));
-  const uint16_t matrix_color_565 = Adafruit_IS31FL3741_QT::color565(
-    color
-  );
-  ledmatrix.drawPixel(6 + x, 4 - y, matrix_color_565);
 }
 
 void check_accessory() {
