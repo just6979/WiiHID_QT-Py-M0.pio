@@ -25,7 +25,9 @@ void setup() {
   Serial.println("Starting");
 
   neo_small.begin();
+  neo_small.setBrightness(10);
   neo_big.begin();
+  neo_big.setBrightness(10);
   neo_small.setPixelColor(0, 0x00FF00);
   neo_big.setPixelColor(0, 0x00FF00);
   neo_small.show();
@@ -55,18 +57,23 @@ void loop() {
     return;
   }
 
+  neo_big.clear();
+  neo_small.clear();
+
   acc.readData();
 
   int jX = 0;
   int jY = 0;
+  boolean bZ = false;
+  boolean bC = false;
   if (acc.type == NUNCHUCK) {
     jX = acc.getJoyX() - 128;
     jY = acc.getJoyY() - 128;
     const int aX = acc.getAccelX();
     const int aY = acc.getAccelY();
     const int aZ = acc.getAccelZ();
-    const boolean bZ = acc.getButtonZ();
-    const boolean bC = acc.getButtonC();
+    bZ = acc.getButtonZ();
+    bC = acc.getButtonC();
     Serial.printf(
       "J[%4d,%4d];A[%3d,%3d,%3d];B[%s%s]\n",
       jX,
@@ -89,19 +96,33 @@ void loop() {
   d += d < 0 ? 360 : 0;
   const int hue = static_cast<int>(d) / 360.0 * 65535;
 
-  const uint32_t pixel_color = Adafruit_IS31FL3741_QT::ColorHSV(hue, 255, val);
-  neo_small.fill(pixel_color);
+  uint32_t color;
+  if (val != 0) {
+    color = Adafruit_IS31FL3741_QT::ColorHSV(hue, 255, 255);
+  } else {
+    // matrix_color = 0xFFFFFF;
+    color = Adafruit_IS31FL3741_QT::ColorHSV(hue, 0, 128);
+  }
+
+  if (bC) {
+    neo_small.fill(color);
+  } else {
+    neo_small.clear();
+  }
+  if (bZ) {
+    neo_big.fill(color);
+  } else {
+    neo_big.clear();
+  }
   neo_small.show();
-  neo_big.fill(pixel_color);
   neo_big.show();
 
-  const uint32_t matrix_color = Adafruit_IS31FL3741_QT::ColorHSV(hue, 255, 255);
   const auto x = (12.0 * (jX - 127.0) / (255.0) + 6.0);
   const auto y = (8.0 * (jY - 127.0) / (255.0) + 4.0);
   ledmatrix.fill(0x000000);
-  ledmatrix.drawFastHLine(0,16,2,Adafruit_IS31FL3741_QT::color565(0xFF0000));
+  ledmatrix.drawFastHLine(0, 16, 2, Adafruit_IS31FL3741_QT::color565(0xFF0000));
   const uint16_t matrix_color_565 = Adafruit_IS31FL3741_QT::color565(
-    matrix_color
+    color
   );
   ledmatrix.drawPixel(6 + x, 4 - y, matrix_color_565);
 }
