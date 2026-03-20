@@ -14,20 +14,27 @@ Adafruit_Debounce button_mode(PIN_A2, LOW);
 Adafruit_IS31FL3741_QT ledmatrix;
 Accessory acc;
 
-int STATUS_RED = 0x110000;
-int STATUS_GREEN = 0x001100;
+auto RED = Adafruit_NeoPixel::gamma32(0xFF0000);
+auto ORANGE = Adafruit_NeoPixel::gamma32(0xFF8800);
+auto YELLOW = Adafruit_NeoPixel::gamma32(0xFFFF00);
+auto GREEN = Adafruit_NeoPixel::gamma32(0x00FF00);
+auto BLUE = Adafruit_NeoPixel::gamma32(0x0000FF);
+auto INDIGO = Adafruit_NeoPixel::gamma32(0x8800FF);
+auto PURPLE = Adafruit_NeoPixel::gamma32(0xFF00FF);
+auto WHITE = Adafruit_NeoPixel::gamma32(0xFFFFFF);
+auto BLACK = Adafruit_NeoPixel::gamma32(0x000000);
 
 int MODE_L_STICK = 0;
 int MODE_D_PAD = 1;
 int MODE_MOUSE = 2;
 int MODE_COUNT = 3;
-int MODE_COLORS[] = {
-  // Light blue for Left-stick
-  0x2222BB,
+uint32_t MODE_COLORS[] = {
+  // Blue for Left-stick
+  BLUE,
   // Green for Gamepad (D-pad)
-  0x00FF00,
-  // Magenta for M_use
-  0xAA0088,
+  GREEN,
+  // Magenta/Purple for Mouse
+  PURPLE,
 };
 String MODE_NAMES[] = {
   "L-Stick",
@@ -53,15 +60,15 @@ void setup() {
   }
   Serial.println("Starting");
 
-  Serial.println("Set up little NeoPixel to show the status");
+  Serial.println("Set up Little NeoPixel (board side) to show status");
   neopixel_status.begin();
-  neopixel_status.setBrightness(10);
-  neopixel_status.setPixelColor(0, 0x110000);
+  neopixel_status.setBrightness(5);
+  neopixel_status.fill(YELLOW);
   neopixel_status.show();
 
-  Serial.println("Set up big NeoPixel to show the mode");
+  Serial.println("Set up Big NeoPixel (button side) to show mode");
   neopixel_mode.begin();
-  neopixel_mode.setBrightness(10);
+  neopixel_mode.setBrightness(5);
   neopixel_mode.setPixelColor(0, MODE_COLORS[mode]);
   neopixel_mode.show();
 
@@ -83,7 +90,7 @@ void setup() {
 
   check_wii_accessory();
   if (acc.isConnected()) {
-    neopixel_status.setPixelColor(0, 0x001100);
+    neopixel_status.fill(GREEN);
     neopixel_status.show();
   }
 }
@@ -118,7 +125,7 @@ void loop() {
 
   if (!acc.isConnected()) {
     Serial.println("Nothing connected, trying again in 2 seconds.");
-    neopixel_status.setPixelColor(0, STATUS_RED);
+    neopixel_status.setPixelColor(0, RED);
     neopixel_status.show();
     delay(2000);
     acc.reset();
@@ -128,11 +135,11 @@ void loop() {
 
   if (!acc.readData()) {
     Serial.println("Could not read data from Wii Accessory");
-    neopixel_status.setPixelColor(0, STATUS_RED);
+    neopixel_status.setPixelColor(0, RED);
     neopixel_status.show();
     return;
   }
-  neopixel_status.setPixelColor(0, STATUS_GREEN);
+  neopixel_status.setPixelColor(0, GREEN);
   neopixel_status.show();
 
   if (acc.type == NUNCHUCK) {
@@ -167,9 +174,13 @@ void loop() {
     val = static_cast<int>(sqrt(pow(jX, 2) + pow(jY, 2)));
     if (val == 0) {
       // use dim white in the middle
-      color = Adafruit_IS31FL3741_QT::ColorHSV(hue, 0, 128);
+      color = Adafruit_NeoPixel::gamma32(
+        Adafruit_IS31FL3741_QT::ColorHSV(hue, 0, 128)
+      );
     } else {
-      color = Adafruit_IS31FL3741_QT::ColorHSV(hue, 255, 255);
+      color = Adafruit_NeoPixel::gamma32(
+        Adafruit_IS31FL3741_QT::ColorHSV(hue, 255, 255)
+      );
     }
     const uint16_t matrix_color_565 = Adafruit_IS31FL3741_QT::color565(color);
 
@@ -179,7 +190,7 @@ void loop() {
     y_pos = 4 - y;
     if (x_pos_old != x_pos || y_pos_old != y_pos) {
       // clear the old pixel
-      ledmatrix.drawPixel(x_pos_old, y_pos_old, 0x000000);
+      ledmatrix.drawPixel(x_pos_old, y_pos_old, BLACK);
       // save the new pixel
       x_pos_old = x_pos;
       y_pos_old = y_pos;
