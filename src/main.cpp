@@ -4,6 +4,8 @@
 #include <WiiChuck.h>
 #include <Adafruit_IS31FL3741.h>
 
+boolean DEBUG = false;
+
 TwoWire *i2c = &Wire;
 Adafruit_NeoPixel neopixel_status(1, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel neopixel_mode(1, PIN_A3, NEO_GRB + NEO_KHZ800);
@@ -40,6 +42,7 @@ void process_classic();
 void setup() {
   Serial.begin(115200);
   while (!Serial) {
+    delay(10);
   }
   Serial.println("Starting");
 
@@ -75,6 +78,21 @@ void setup() {
   }
 }
 
+int jX = 0;
+int jY = 0;
+boolean bZ = false;
+boolean bC = false;
+
+double theta;
+double degrees;
+int hue;
+int val;
+uint32_t color;
+int16_t x_pos;
+int16_t y_pos;
+int16_t x_pos_old;
+int16_t y_pos_old;
+
 void loop() {
   if (!acc.isConnected()) {
     Serial.println("Nothing connected, trying again in 2 seconds.");
@@ -95,11 +113,6 @@ void loop() {
   neopixel_status.setPixelColor(0, STATUS_GREEN);
   neopixel_status.show();
 
-
-  int jX = 0;
-  int jY = 0;
-  boolean bZ = false;
-  boolean bC = false;
   if (acc.type == NUNCHUCK) {
     jX = acc.getJoyX() - 128;
     jY = acc.getJoyY() - 128;
@@ -108,16 +121,18 @@ void loop() {
     const int aZ = acc.getAccelZ();
     bZ = acc.getButtonZ();
     bC = acc.getButtonC();
-    Serial.printf(
-      "J[%4d,%4d];A[%3d,%3d,%3d];B[%s%s]\n",
-      jX,
-      jY,
-      aX,
-      aY,
-      aZ,
-      bZ ? "Z" : " ",
-      bC ? "C" : " "
-    );
+    if (DEBUG) {
+      Serial.printf(
+        "J[%4d,%4d];A[%3d,%3d,%3d];B[%s%s]\n",
+        jX,
+        jY,
+        aX,
+        aY,
+        aZ,
+        bZ ? "Z" : " ",
+        bC ? "C" : " "
+      );
+    }
   } else if (acc.type == WIICLASSIC) {
     process_classic();
   }
