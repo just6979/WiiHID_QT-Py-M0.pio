@@ -5,10 +5,27 @@
 #include <Adafruit_IS31FL3741.h>
 
 TwoWire *i2c = &Wire;
-Adafruit_NeoPixel neo_small(1, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
-Adafruit_NeoPixel neo_big(1, PIN_A3, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel neopixel_status(1, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel neopixel_mode(1, PIN_A3, NEO_GRB + NEO_KHZ800);
 Adafruit_IS31FL3741_QT ledmatrix;
 Accessory acc;
+
+int STATUS_RED = 0x110000;
+int STATUS_GREEN = 0x001100;
+
+int MODE_L_STICK = 0;
+int MODE_D_PAD = 1;
+int MODE_MOUSE = 2;
+int MODE_COUNT = 3;
+int MODE_COLORS[] = {
+  // Light blue for Left-stick
+  0x2222BB,
+  // Green for Gamepad (D-pad)
+  0x00FF00,
+  // Magenta for M_use
+  0xAA0088,
+};
+int mode = MODE_L_STICK;
 
 bool isSupportedAccessory = false;
 
@@ -16,7 +33,7 @@ int IS31_ADDRESS = 0x30;
 boolean is31_found = false;
 
 // forward declarations so I can organize how I want to
-void check_accessory();
+void check_wii_accessory();
 void process_nunchuck();
 void process_classic();
 
@@ -26,16 +43,17 @@ void setup() {
   }
   Serial.println("Starting");
 
-  neo_small.begin();
-  neo_small.setBrightness(10);
-  neo_big.begin();
-  neo_big.setBrightness(10);
-  neo_small.setPixelColor(0, 0x00FF00);
-  neo_big.setPixelColor(0, 0x00FF00);
-  neo_small.show();
-  neo_big.show();
+  Serial.println("Set up little NeoPixel to show the status");
+  neopixel_status.begin();
+  neopixel_status.setBrightness(10);
+  neopixel_status.setPixelColor(0, 0x110000);
+  neopixel_status.show();
 
-  check_accessory();
+  Serial.println("Set up big NeoPixel to show the mode");
+  neopixel_mode.begin();
+  neopixel_mode.setBrightness(10);
+  neopixel_mode.setPixelColor(0, MODE_COLORS[mode]);
+  neopixel_mode.show();
 
   if (ledmatrix.begin(IS31_ADDRESS, i2c)) {
     Serial.printf("IS41 found at 0x%X\n", IS31_ADDRESS);
@@ -50,20 +68,33 @@ void setup() {
     Serial.printf("IS41 not found at 0x%X\n", IS31_ADDRESS);
   }
 
+  check_wii_accessory();
+  if (acc.isConnected()) {
+    neopixel_status.setPixelColor(0, 0x001100);
+    neopixel_status.show();
+  }
+}
 
 void loop() {
   if (!acc.isConnected()) {
     Serial.println("Nothing connected, trying again in 2 seconds.");
+    neopixel_status.setPixelColor(0, STATUS_RED);
+    neopixel_status.show();
     delay(2000);
     acc.reset();
-    check_accessory();
+    check_wii_accessory();
     return;
   }
 
-  neo_big.clear();
-  neo_small.clear();
+  if (!acc.readData()) {
+    Serial.println("Could not read data from Wii Accessory");
+    neopixel_status.setPixelColor(0, STATUS_RED);
+    neopixel_status.show();
+    return;
+  }
+  neopixel_status.setPixelColor(0, STATUS_GREEN);
+  neopixel_status.show();
 
-  acc.readData();
 
   int jX = 0;
   int jY = 0;
@@ -121,7 +152,7 @@ void loop() {
   }
 }
 
-void check_accessory() {
+void check_wii_accessory() {
   acc.begin();
   Serial.printf("Accessory Type: %d\n", acc.type);
   switch (acc.type) {
