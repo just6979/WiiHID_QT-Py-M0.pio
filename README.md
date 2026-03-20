@@ -1,8 +1,7 @@
 Using [Adafruit QT Py - SAMD21](https://www.adafruit.com/product/4600),
 [WiiChuck library](https://github.com/madhephaestus/WiiChuck),
-and various Adafruit Arduino libraries to turn a Wii Nunchuck
-into a simple joystick/gamepad, and mouse emulator.
-(selectable, not all at the same time, though that might be interesting...)
+and various Adafruit Arduino libraries, to turn a Wii Nunchuck
+into a simple joystick/gamepad and* mouse emulator.
 
 Using a [Adafruit IoT Button with NeoPixel BFF Add-On](https://www.adafruit.com/product/5666)
 piggybacked on the QT PY to indicate and switch modes:
@@ -20,12 +19,15 @@ piggybacked on the QT PY to indicate and switch modes:
   * *G*reen for D-*p*ad (*G*ame*p*ad)
   * *M*agenta/Purple for *M*ouse mode
 
+(_Selectable_ modes, not all at the same time, though that might be interesting...
+Let's add it to the "Next" list, see below)
+
 * Next
   * Remember the mode
   * New modes:
-    * Joystick on stick, mouse on accel
     * Accel mouse
-    * everything all at once
+    * Joystick on stick, mouse on accel
+    * All modes at once
   * Long press button in mouse mode to change sensitivity
   * configuration:
     * nunchuck stick deadzones to account for worn ones that are drifty
