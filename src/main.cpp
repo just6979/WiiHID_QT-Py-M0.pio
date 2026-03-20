@@ -55,8 +55,10 @@ void process_classic();
 
 void setup() {
   Serial.begin(115200);
-  while (!Serial) {
-    delay(10);
+  if (DEBUG) {
+    while (!Serial) {
+      delay(10);
+    }
   }
   Serial.println("Starting");
 
