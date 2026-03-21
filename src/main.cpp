@@ -145,6 +145,9 @@ void loop() {
   if (acc.type == NUNCHUCK) {
     jX = acc.getJoyX() - 128;
     jY = acc.getJoyY() - 128;
+    // ensure it doesn't wrap (there might be a better way to do this)
+    if (jX < -127) { jX = -127; }
+    if (jY < -127) { jY = -127; }
     const int aX = acc.getAccelX();
     const int aY = acc.getAccelY();
     const int aZ = acc.getAccelZ();
