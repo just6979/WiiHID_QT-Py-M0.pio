@@ -5,8 +5,6 @@
 #include <Adafruit_IS31FL3741.h>
 #include <Adafruit_Debounce.h>
 
-boolean DEBUG = false;
-
 TwoWire *i2c = &Wire;
 Adafruit_NeoPixel neopixel_status(1, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel neopixel_mode(1, PIN_A3, NEO_GRB + NEO_KHZ800);
@@ -55,11 +53,11 @@ void process_classic();
 
 void setup() {
   Serial.begin(115200);
-  if (DEBUG) {
-    while (!Serial) {
-      delay(10);
-    }
+#ifdef DEBUG
+  while (!Serial) {
+    delay(10);
   }
+#endif
   Serial.println("Starting");
 
   Serial.println("Set up Little NeoPixel (board side) to show status");
@@ -152,18 +150,18 @@ void loop() {
     const int aZ = acc.getAccelZ();
     bZ = acc.getButtonZ();
     bC = acc.getButtonC();
-    if (DEBUG) {
-      Serial.printf(
-        "J[%4d,%4d];A[%3d,%3d,%3d];B[%s%s]\n",
-        jX,
-        jY,
-        aX,
-        aY,
-        aZ,
-        bZ ? "Z" : " ",
-        bC ? "C" : " "
-      );
-    }
+#ifdef DEBUG
+    Serial.printf(
+      "J[%4d,%4d];A[%3d,%3d,%3d];B[%s%s]\n",
+      jX,
+      jY,
+      aX,
+      aY,
+      aZ,
+      bZ ? "Z" : " ",
+      bC ? "C" : " "
+    );
+#endif
   } else if (acc.type == WIICLASSIC) {
     process_classic();
   }
