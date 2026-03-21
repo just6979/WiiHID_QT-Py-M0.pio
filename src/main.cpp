@@ -5,6 +5,8 @@
 #include <Adafruit_IS31FL3741.h>
 #include <Adafruit_Debounce.h>
 
+#define WAIT_FOR_SERIAL 0
+
 TwoWire *i2c = &Wire;
 Adafruit_NeoPixel neopixel_status(1, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel neopixel_mode(1, PIN_A3, NEO_GRB + NEO_KHZ800);
@@ -43,6 +45,12 @@ int mode = MODE_L_STICK;
 
 bool isSupportedAccessory = false;
 
+uint8_t const desc_hid_report[] = {
+  TUD_HID_REPORT_DESC_GAMEPAD()
+};
+Adafruit_USBD_HID usb_hid;
+hid_gamepad_report_t gp;
+
 int IS31_ADDRESS = 0x30;
 boolean is31_found = false;
 
@@ -53,12 +61,23 @@ void process_classic();
 
 void setup() {
   Serial.begin(115200);
-#ifdef DEBUG
+#if WAIT_FOR_SERIAL
   while (!Serial) {
     delay(10);
   }
 #endif
   Serial.println("Starting");
+
+  Serial.println("Set up TinyUSB HID");
+  usb_hid.setPollInterval(2);
+  usb_hid.setReportDescriptor(desc_hid_report, sizeof(desc_hid_report));
+  usb_hid.begin();
+  // reattach to ensure all drivers start
+  if (TinyUSBDevice.mounted()) {
+    TinyUSBDevice.detach();
+    delay(10);
+    TinyUSBDevice.attach();
+  }
 
   Serial.println("Set up Little NeoPixel (board side) to show status");
   neopixel_status.begin();
@@ -153,7 +172,6 @@ void loop() {
     const int aZ = acc.getAccelZ();
     bZ = acc.getButtonZ();
     bC = acc.getButtonC();
-#ifdef DEBUG
     Serial.printf(
       "J[%4d,%4d];A[%3d,%3d,%3d];B[%s%s]\n",
       jX,
@@ -164,9 +182,26 @@ void loop() {
       bZ ? "Z" : " ",
       bC ? "C" : " "
     );
-#endif
   } else if (acc.type == WIICLASSIC) {
     process_classic();
+  }
+
+  if (TinyUSBDevice.mounted() && usb_hid.ready()) {
+    gp.x = jX;
+    // flip Y axis, not sure why
+    gp.y = -jY;
+    // reset buttons
+    gp.buttons = 0;
+    // set buttons
+    if (bZ) {
+      // "East" is the second button
+      gp.buttons = (1U << 1);
+    }
+    if (bC) {
+      // "South" is the first button
+      gp.buttons = (1U << 0);
+    }
+    usb_hid.sendReport(0, &gp, sizeof(gp));
   }
 
   if (is31_found) {
