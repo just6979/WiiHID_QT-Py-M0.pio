@@ -33,12 +33,12 @@ uint32_t c_fill_color;
 
 constexpr uint8_t MODE_L_STICK = 0;
 constexpr uint8_t MODE_D_PAD = 1;
-constexpr uint8_t MODE_MOUSE = 2;
-constexpr uint8_t MODE_COUNT = 3;
+// constexpr uint8_t MODE_MOUSE = 2;
+constexpr uint8_t MODE_COUNT = 2;
 const String MODE_NAMES[MODE_COUNT] = {
   "L-Stick",
   "D-Pad",
-  "Mouse",
+  // "Mouse",
 };
 const uint32_t MODE_COLORS[MODE_COUNT] = {
   // Blue for Left-stick
@@ -46,7 +46,7 @@ const uint32_t MODE_COLORS[MODE_COUNT] = {
   // Green for Gamepad (D-pad)
   GREEN,
   // Magenta/Purple for Mouse
-  PURPLE,
+  // PURPLE,
 };
 uint8_t mode = MODE_L_STICK;
 
