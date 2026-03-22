@@ -206,7 +206,7 @@ void loop() {
     // Z for the first button
     if (bZ) gp.buttons = (1U << 0);
     // C for second button
-    if (bC) gp.buttons = (1U << 0);
+    if (bC) gp.buttons = (1U << 1);
     usb_hid.sendReport(0, &gp, sizeof(gp));
   }
 
