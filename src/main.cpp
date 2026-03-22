@@ -22,6 +22,7 @@ const auto BLUE = Adafruit_NeoPixel::gamma32(0x0000FF);
 const auto INDIGO = Adafruit_NeoPixel::gamma32(0x8800FF);
 const auto PURPLE = Adafruit_NeoPixel::gamma32(0xFF00FF);
 const auto WHITE = Adafruit_NeoPixel::gamma32(0xFFFFFF);
+const auto GRAY = Adafruit_NeoPixel::gamma32(0x888888);
 const auto BLACK = Adafruit_NeoPixel::gamma32(0x000000);
 
 constexpr uint8_t MODE_L_STICK = 0;
@@ -43,7 +44,7 @@ const uint32_t MODE_COLORS[MODE_COUNT] = {
 };
 uint8_t mode = MODE_L_STICK;
 
-bool isSupportedAccessory = false;
+bool nunchuckAttached = false;
 
 constexpr uint8_t desc_hid_report[] = {
   TUD_HID_REPORT_DESC_GAMEPAD()
@@ -57,10 +58,35 @@ constexpr uint8_t IS31_LED_SCALING = 0xFF;
 constexpr uint8_t IS31_GLOBAL_CURRENT = 0x10;
 boolean is31_found = false;
 
-// forward declarations so I can organize how I want to
-void check_wii_accessory();
-void process_nunchuck();
-void process_classic();
+int8_t jX = 0;
+int8_t jY = 0;
+boolean bZ = false;
+boolean bC = false;
+
+double theta;
+double degrees;
+int32_t hue;
+int32_t val;
+uint32_t color;
+uint16_t matrix_color_565;
+int8_t x_pos;
+int8_t y_pos;
+int8_t x_pos_old;
+int8_t y_pos_old;
+
+
+void check_wii_accessory() {
+  Serial.println("Checking for Wii accesorries");
+  acc.begin();
+  if (acc.type == NUNCHUCK) {
+    Serial.println("Found Nunchuck");
+    nunchuckAttached = true;
+  } else {
+    Serial.printf("Found accessory type %d, not a Nunchuck.", acc.type);
+    nunchuckAttached = false;
+  }
+}
+
 
 void setup() {
   Serial.begin(115200);
@@ -70,17 +96,6 @@ void setup() {
   }
 #endif
   Serial.println("Starting");
-
-  Serial.println("Set up TinyUSB HID");
-  usb_hid.setPollInterval(2);
-  usb_hid.setReportDescriptor(desc_hid_report, sizeof(desc_hid_report));
-  usb_hid.begin();
-  // reattach to ensure all drivers start
-  if (TinyUSBDevice.mounted()) {
-    TinyUSBDevice.detach();
-    delay(10);
-    TinyUSBDevice.attach();
-  }
 
   Serial.println("Set up Little NeoPixel (board side) to show status");
   neopixel_status.begin();
@@ -97,6 +112,20 @@ void setup() {
   Serial.println("Set up Big Button to change modes");
   button_mode.begin();
 
+  Serial.println("Set up TinyUSB HID");
+  usb_hid.setPollInterval(2);
+  usb_hid.setReportDescriptor(desc_hid_report, sizeof(desc_hid_report));
+  usb_hid.begin();
+  // reattach to ensure all drivers start
+  if (TinyUSBDevice.mounted()) {
+    TinyUSBDevice.detach();
+    delay(10);
+    TinyUSBDevice.attach();
+    neopixel_status.fill(YELLOW);
+    neopixel_status.show();
+  }
+
+
   if (ledmatrix.begin(IS31_ADDRESS, i2c)) {
     Serial.printf("IS41 found at 0x%X\n", IS31_ADDRESS);
     is31_found = true;
@@ -104,11 +133,7 @@ void setup() {
     ledmatrix.setLEDscaling(IS31_LED_SCALING);
     ledmatrix.setGlobalCurrent(IS31_GLOBAL_CURRENT);
     ledmatrix.enable(true);
-    ledmatrix.drawPixel(
-      ledmatrix.width() / 2,
-      ledmatrix.height() / 2,
-      MODE_COLORS[mode]
-    );
+    ledmatrix.fill(BLACK);
     ledmatrix.show();
   } else {
     Serial.printf("IS41 not found at 0x%X\n", IS31_ADDRESS);
@@ -123,21 +148,6 @@ void setup() {
   Serial.println("Done setup");
 }
 
-int jX = 0;
-int jY = 0;
-boolean bZ = false;
-boolean bC = false;
-
-double theta;
-double degrees;
-int hue;
-int val;
-uint32_t color;
-int16_t x_pos;
-int16_t y_pos;
-int16_t x_pos_old;
-int16_t y_pos_old;
-
 void loop() {
   button_mode.update();
   if (button_mode.justPressed()) {
@@ -151,9 +161,16 @@ void loop() {
   neopixel_mode.setPixelColor(0, MODE_COLORS[mode]);
   neopixel_mode.show();
 
-  if (!acc.isConnected()) {
-    Serial.println("Nothing connected, trying again in 2 seconds.");
+  if (!TinyUSBDevice.mounted()) {
+    Serial.println("USB HID not mounted, trying again");
+    TinyUSBDevice.attach();
     neopixel_status.setPixelColor(0, RED);
+    return;
+  }
+
+  if (!acc.isConnected()) {
+    Serial.println("No Wii accessory connected, trying again in 2 seconds.");
+    neopixel_status.setPixelColor(0, YELLOW);
     neopixel_status.show();
     delay(2000);
     acc.reset();
@@ -162,15 +179,15 @@ void loop() {
   }
 
   if (!acc.readData()) {
-    Serial.println("Could not read data from Wii Accessory");
-    neopixel_status.setPixelColor(0, RED);
+    Serial.println("Could not read data from Wii Accessory, trying again");
+    neopixel_status.setPixelColor(0, YELLOW);
     neopixel_status.show();
     return;
   }
-  neopixel_status.setPixelColor(0, GREEN);
-  neopixel_status.show();
 
   if (acc.type == NUNCHUCK) {
+    neopixel_status.setPixelColor(0, GREEN);
+    neopixel_status.show();
     jX = static_cast<int8_t>(acc.getJoyX() - 128);
     jY = static_cast<int8_t>(acc.getJoyY() - 128);
     if (jX < -127) { jX = -127; }
@@ -181,26 +198,24 @@ void loop() {
     const int aX = acc.getAccelX();
     const int aY = acc.getAccelY();
     const int aZ = acc.getAccelZ();
-    // Serial.printf(
-    //   "J[%4d,%4d];A[%3d,%3d,%3d];B[%s%s]",
-    //   jX,
-    //   jY,
-    //   aX,
-    //   aY,
-    //   aZ,
-    //   bZ ? "Z" : " ",
-    //   bC ? "C" : " "
-    // );
-    // Serial.println();
+    Serial.printf(
+      "J[%4d,%4d];A[%3d,%3d,%3d];B[%s%s]",
+      jX,
+      jY,
+      aX,
+      aY,
+      aZ,
+      bZ ? "Z" : " ",
+      bC ? "C" : " "
+    );
+    Serial.println();
 #endif
-  } else if (acc.type == WIICLASSIC) {
-    process_classic();
   }
 
-  if (TinyUSBDevice.mounted() && usb_hid.ready()) {
+  if (usb_hid.ready()) {
     gp.x = jX;
     // flip Y axis, not sure why
-    gp.y = -jY;
+    gp.y = static_cast<int8_t>(jY * -1);
     // reset buttons
     gp.buttons = 0;
     // Z for the first button
@@ -226,12 +241,12 @@ void loop() {
         Adafruit_IS31FL3741_QT::ColorHSV(hue, 255, 255)
       );
     }
-    const uint16_t matrix_color_565 = Adafruit_IS31FL3741_QT::color565(color);
+    matrix_color_565 = Adafruit_IS31FL3741_QT::color565(color);
 
-    const auto x = static_cast<int>(13.0 * (jX - 127.0) / (255.0) + 6.0);
-    const auto y = static_cast<int>(9.0 * (jY - 127.0) / (255.0) + 4.0);
-    x_pos = 6 + x;
-    y_pos = 4 - y;
+    const auto x = static_cast<int8_t>(13.0 * (jX - 127.0) / (255.0) + 6.0);
+    const auto y = static_cast<int8_t>(9.0 * (jY - 127.0) / (255.0) + 4.0);
+    x_pos = static_cast<int8_t>(6 + x);
+    y_pos = static_cast<int8_t>(4 - y);
     if (x_pos_old != x_pos || y_pos_old != y_pos) {
       // clear the old pixel
       ledmatrix.drawPixel(x_pos_old, y_pos_old, BLACK);
@@ -242,103 +257,4 @@ void loop() {
     ledmatrix.drawPixel(x_pos, y_pos, matrix_color_565);
     ledmatrix.show();
   }
-}
-
-void check_wii_accessory() {
-  Serial.println("Checking for Wii accesorries");
-  acc.begin();
-  Serial.printf("Wii accessory found, type: %d\n", acc.type);
-  switch (acc.type) {
-    case NUNCHUCK:
-      Serial.println("Found Nunchuck");
-      isSupportedAccessory = true;
-      break;
-    case WIICLASSIC:
-      Serial.println("Found Wii Classic Controller");
-      isSupportedAccessory = true;
-      break;
-    case GuitarHeroController:
-      Serial.println("Found Guitar Hero Controller");
-      break;
-    case GuitarHeroWorldTourDrums:
-      Serial.println("Found Guitar Hero World TourDrums");
-      break;
-    case DrumController:
-      Serial.println("Found Drum Controller");
-      break;
-    case DrawsomeTablet:
-      Serial.println("Found Drawsome Tablet");
-      break;
-    case Turntable:
-      Serial.println("Found Turntable");
-      break;
-    case UnknownChuck:
-      Serial.println("Unknown accessory type");
-      break;
-  }
-  if (!isSupportedAccessory) {
-    Serial.println(
-      "We don't support this accessory type [yet?] for HID, "
-      "so we'll just treat it as a Nunchuck."
-    );
-  }
-}
-
-void process_nunchuck() {
-  const int jX = acc.getJoyX();
-  const int jY = acc.getJoyY();
-  const int aX = acc.getAccelX();
-  const int aY = acc.getAccelY();
-  const int aZ = acc.getAccelZ();
-  const boolean bZ = acc.getButtonZ();
-  const boolean bC = acc.getButtonC();
-
-  Serial.printf(
-    "J[%03d,%03d];A[%03d,%03d,%03d];B[%s%s]\n",
-    jX,
-    jY,
-    aX,
-    aY,
-    aZ,
-    bZ ? "Z" : " ",
-    bC ? "C" : " "
-  );
-}
-
-void process_classic() {
-  const int lX = acc.getJoyXLeft();
-  const int lY = acc.getJoyYLeft();
-  const int rX = acc.getJoyXRight();
-  const int rY = acc.getJoyYRight();
-  const int tL = acc.getTriggerLeft();
-  const int tR = acc.getTriggerRight();
-  const boolean bA = acc.getButtonA();
-  const boolean bB = acc.getButtonB();
-  const boolean bX = acc.getButtonX();
-  const boolean bY = acc.getButtonY();
-  const boolean bM = acc.getButtonMinus();
-  const boolean bP = acc.getButtonPlus();
-  const boolean bH = acc.getButtonHome();
-  const boolean bZL = acc.getButtonZLeft();
-  const boolean bZR = acc.getButtonZRight();
-
-  Serial.printf(
-    "JL[%03d,%03d];JR[%03d,%03d];T[L%03d,R%03d]\n"
-    "B[%s%s%s%s][%s%s][%s%s%s]\n",
-    lX,
-    lY,
-    rX,
-    rY,
-    tL,
-    tR,
-    bA ? "A" : " ",
-    bB ? "B" : " ",
-    bX ? "X" : " ",
-    bY ? "Y" : " ",
-    bZL ? "ZL" : "  ",
-    bZR ? "ZR" : " ",
-    bM ? "-" : " ",
-    bH ? "H" : " ",
-    bP ? "P" : " "
-  );
 }
