@@ -227,8 +227,8 @@ void loop() {
     }
     const uint16_t matrix_color_565 = Adafruit_IS31FL3741_QT::color565(color);
 
-    const auto x = static_cast<int>(12.0 * (jX - 127.0) / (255.0) + 6.0);
-    const auto y = static_cast<int>(8.0 * (jY - 127.0) / (255.0) + 4.0);
+    const auto x = static_cast<int>(13.0 * (jX - 127.0) / (255.0) + 6.0);
+    const auto y = static_cast<int>(9.0 * (jY - 127.0) / (255.0) + 4.0);
     x_pos = 6 + x;
     y_pos = 4 - y;
     if (x_pos_old != x_pos || y_pos_old != y_pos) {
