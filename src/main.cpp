@@ -219,11 +219,44 @@ void loop() {
   }
 
   if (usb_hid.ready()) {
-    gp.x = jX;
-    // flip Y axis, not sure why
-    gp.y = static_cast<int8_t>(jY * -1);
-    // reset buttons
+    // reset
+    gp.x = 0;
+    gp.y = 0;
+    gp.hat = 0;
     gp.buttons = 0;
+
+    if (mode == MODE_L_STICK) {
+      gp.x = jX;
+      // flip Y axis, not sure why
+      gp.y = static_cast<int8_t>(jY * -1);
+    }
+
+    if (mode == MODE_D_PAD) {
+      theta = atan2(jX, jY);
+      degrees = theta * (180.0 / M_PI);
+      degrees += degrees < 0 ? 360 : 0;
+      val = static_cast<int>(sqrt(pow(jX, 2) + pow(jY, 2)));
+      if (val > 64) {
+        // D-pad values go CCW starting from East
+        // E
+        if (degrees < 22.5 || degrees > 337.5) gp.hat = 1;
+        // NE
+        if (degrees < 67.5 && degrees > 22.5) gp.hat = 2;
+        // N
+        if (degrees < 112.5 && degrees > 67.5) gp.hat = 3;
+        // NW
+        if (degrees < 157.5 && degrees > 112.5) gp.hat = 4;
+        // W
+        if (degrees < 202.5 && degrees > 157.5) gp.hat = 5;
+        // SW
+        if (degrees < 247.5 && degrees > 202.5) gp.hat = 6;
+        // S
+        if (degrees < 292.5 && degrees > 247.5) gp.hat = 7;
+        // SE
+        if (degrees < 337.5 && degrees > 292.5) gp.hat = 8;
+      }
+    }
+
     // Z for the first button
     if (bZ) gp.buttons = (1U << 0);
     // C for second button
