@@ -197,15 +197,10 @@ void loop() {
     gp.y = -jY;
     // reset buttons
     gp.buttons = 0;
-    // set buttons
-    if (bZ) {
-      // "East" is the second button
-      gp.buttons = (1U << 1);
-    }
-    if (bC) {
-      // "South" is the first button
-      gp.buttons = (1U << 0);
-    }
+    // Z for the first button
+    if (bZ) gp.buttons = (1U << 0);
+    // C for second button
+    if (bC) gp.buttons = (1U << 0);
     usb_hid.sendReport(0, &gp, sizeof(gp));
   }
 
