@@ -8,27 +8,32 @@
 #define WAIT_FOR_SERIAL 0
 
 TwoWire *i2c = &Wire;
+Accessory acc;
 Adafruit_NeoPixel neopixel_status(1, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel neopixel_mode(1, PIN_A3, NEO_GRB + NEO_KHZ800);
 Adafruit_Debounce button_mode(PIN_A2, LOW);
 Adafruit_IS31FL3741_QT ledmatrix;
-Accessory acc;
 
-auto RED = Adafruit_NeoPixel::gamma32(0xFF0000);
-auto ORANGE = Adafruit_NeoPixel::gamma32(0xFF8800);
-auto YELLOW = Adafruit_NeoPixel::gamma32(0xFFFF00);
-auto GREEN = Adafruit_NeoPixel::gamma32(0x00FF00);
-auto BLUE = Adafruit_NeoPixel::gamma32(0x0000FF);
-auto INDIGO = Adafruit_NeoPixel::gamma32(0x8800FF);
-auto PURPLE = Adafruit_NeoPixel::gamma32(0xFF00FF);
-auto WHITE = Adafruit_NeoPixel::gamma32(0xFFFFFF);
-auto BLACK = Adafruit_NeoPixel::gamma32(0x000000);
+const auto RED = Adafruit_NeoPixel::gamma32(0xFF0000);
+const auto ORANGE = Adafruit_NeoPixel::gamma32(0xFF8800);
+const auto YELLOW = Adafruit_NeoPixel::gamma32(0xFFFF00);
+const auto GREEN = Adafruit_NeoPixel::gamma32(0x00FF00);
+const auto BLUE = Adafruit_NeoPixel::gamma32(0x0000FF);
+const auto INDIGO = Adafruit_NeoPixel::gamma32(0x8800FF);
+const auto PURPLE = Adafruit_NeoPixel::gamma32(0xFF00FF);
+const auto WHITE = Adafruit_NeoPixel::gamma32(0xFFFFFF);
+const auto BLACK = Adafruit_NeoPixel::gamma32(0x000000);
 
-int MODE_L_STICK = 0;
-int MODE_D_PAD = 1;
-int MODE_MOUSE = 2;
-int MODE_COUNT = 3;
-uint32_t MODE_COLORS[] = {
+constexpr uint8_t MODE_L_STICK = 0;
+constexpr uint8_t MODE_D_PAD = 1;
+constexpr uint8_t MODE_MOUSE = 2;
+constexpr uint8_t MODE_COUNT = 3;
+const String MODE_NAMES[MODE_COUNT] = {
+  "L-Stick",
+  "D-Pad",
+  "Mouse",
+};
+const uint32_t MODE_COLORS[MODE_COUNT] = {
   // Blue for Left-stick
   BLUE,
   // Green for Gamepad (D-pad)
@@ -36,22 +41,20 @@ uint32_t MODE_COLORS[] = {
   // Magenta/Purple for Mouse
   PURPLE,
 };
-String MODE_NAMES[] = {
-  "L-Stick",
-  "D-Pad",
-  "Mouse",
-};
-int mode = MODE_L_STICK;
+uint8_t mode = MODE_L_STICK;
 
 bool isSupportedAccessory = false;
 
-uint8_t const desc_hid_report[] = {
+constexpr uint8_t desc_hid_report[] = {
   TUD_HID_REPORT_DESC_GAMEPAD()
 };
 Adafruit_USBD_HID usb_hid;
 hid_gamepad_report_t gp;
 
-int IS31_ADDRESS = 0x30;
+constexpr uint8_t IS31_ADDRESS = 0x30;
+constexpr uint32_t I2C_CLOCK = 800000;
+constexpr uint8_t IS31_LED_SCALING = 0xFF;
+constexpr uint8_t IS31_GLOBAL_CURRENT = 0x10;
 boolean is31_found = false;
 
 // forward declarations so I can organize how I want to
@@ -97,11 +100,15 @@ void setup() {
   if (ledmatrix.begin(IS31_ADDRESS, i2c)) {
     Serial.printf("IS41 found at 0x%X\n", IS31_ADDRESS);
     is31_found = true;
-    i2c->setClock(800000L);
-    ledmatrix.setLEDscaling(0xFF);
-    ledmatrix.setGlobalCurrent(0x10);
+    i2c->setClock(I2C_CLOCK);
+    ledmatrix.setLEDscaling(IS31_LED_SCALING);
+    ledmatrix.setGlobalCurrent(IS31_GLOBAL_CURRENT);
     ledmatrix.enable(true);
-    ledmatrix.drawPixel(6, 4, MODE_COLORS[mode]);
+    ledmatrix.drawPixel(
+      ledmatrix.width() / 2,
+      ledmatrix.height() / 2,
+      MODE_COLORS[mode]
+    );
     ledmatrix.show();
   } else {
     Serial.printf("IS41 not found at 0x%X\n", IS31_ADDRESS);
@@ -164,9 +171,8 @@ void loop() {
   neopixel_status.show();
 
   if (acc.type == NUNCHUCK) {
-    jX = acc.getJoyX() - 128;
-    jY = acc.getJoyY() - 128;
-    // ensure it doesn't wrap (there might be a better way to do this)
+    jX = static_cast<int8_t>(acc.getJoyX() - 128);
+    jY = static_cast<int8_t>(acc.getJoyY() - 128);
     if (jX < -127) { jX = -127; }
     if (jY < -127) { jY = -127; }
     bZ = acc.getButtonZ();
@@ -208,7 +214,7 @@ void loop() {
     theta = atan2(jX, jY);
     degrees = theta * (180.0 / M_PI);
     degrees += degrees < 0 ? 360 : 0;
-    hue = static_cast<int>(degrees) / 360.0 * 65535;
+    hue = static_cast<int>(degrees / 360.0 * 65535);
     val = static_cast<int>(sqrt(pow(jX, 2) + pow(jY, 2)));
     if (val == 0) {
       // use dim white in the middle
