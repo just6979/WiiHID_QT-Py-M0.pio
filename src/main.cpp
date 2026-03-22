@@ -25,6 +25,12 @@ const auto WHITE = Adafruit_NeoPixel::gamma32(0xFFFFFF);
 const auto GRAY = Adafruit_NeoPixel::gamma32(0x888888);
 const auto BLACK = Adafruit_NeoPixel::gamma32(0x000000);
 
+const auto JOY_COLOR = Adafruit_IS31FL3741_QT::color565(RED);
+const auto Z_COLOR = Adafruit_IS31FL3741_QT::color565(GREEN);
+const auto C_COLOR = Adafruit_IS31FL3741_QT::color565(BLUE);
+uint32_t z_fill_color;
+uint32_t c_fill_color;
+
 constexpr uint8_t MODE_L_STICK = 0;
 constexpr uint8_t MODE_D_PAD = 1;
 constexpr uint8_t MODE_MOUSE = 2;
@@ -54,8 +60,8 @@ hid_gamepad_report_t gp;
 
 constexpr uint8_t IS31_ADDRESS = 0x30;
 constexpr uint32_t I2C_CLOCK = 800000;
-constexpr uint8_t IS31_LED_SCALING = 0xFF;
-constexpr uint8_t IS31_GLOBAL_CURRENT = 0x10;
+constexpr uint8_t IS31_LED_SCALING = 0x88;
+constexpr uint8_t IS31_GLOBAL_CURRENT = 0x05;
 boolean is31_found = false;
 
 int8_t jX = 0;
@@ -68,7 +74,7 @@ double degrees;
 int32_t hue;
 int32_t val;
 uint32_t color;
-uint16_t matrix_color_565;
+uint16_t pixel_color;
 int8_t x_pos;
 int8_t y_pos;
 int8_t x_pos_old;
@@ -232,21 +238,22 @@ void loop() {
     hue = static_cast<int>(degrees / 360.0 * 65535);
     val = static_cast<int>(sqrt(pow(jX, 2) + pow(jY, 2)));
     if (val == 0) {
-      // use dim white in the middle
+      // use white in the middle
       color = Adafruit_NeoPixel::gamma32(
-        Adafruit_IS31FL3741_QT::ColorHSV(hue, 0, 128)
+        Adafruit_IS31FL3741_QT::ColorHSV(hue, 0, 255)
       );
     } else {
       color = Adafruit_NeoPixel::gamma32(
         Adafruit_IS31FL3741_QT::ColorHSV(hue, 255, 255)
       );
     }
-    matrix_color_565 = Adafruit_IS31FL3741_QT::color565(color);
+    pixel_color = Adafruit_IS31FL3741_QT::color565(color);
 
-    const auto x = static_cast<int8_t>(13.0 * (jX - 127.0) / (255.0) + 6.0);
-    const auto y = static_cast<int8_t>(9.0 * (jY - 127.0) / (255.0) + 4.0);
+    const auto x = static_cast<int8_t>(7 * (jX - 127) / 255 + 3) - 2;
+    const auto y = static_cast<int8_t>(7 * (jY - 127) / 255 + 3);
     x_pos = static_cast<int8_t>(6 + x);
     y_pos = static_cast<int8_t>(4 - y);
+    ledmatrix.drawRect(0, 0, 9, 9, pixel_color);
     if (x_pos_old != x_pos || y_pos_old != y_pos) {
       // clear the old pixel
       ledmatrix.drawPixel(x_pos_old, y_pos_old, BLACK);
@@ -254,7 +261,25 @@ void loop() {
       x_pos_old = x_pos;
       y_pos_old = y_pos;
     }
-    ledmatrix.drawPixel(x_pos, y_pos, matrix_color_565);
+    // draw the new pixel
+    ledmatrix.drawPixel(x_pos, y_pos, pixel_color);
+
+    ledmatrix.drawRect(9, 0, 4, 4, C_COLOR);
+    if (bC) {
+      c_fill_color = C_COLOR;
+    } else {
+      c_fill_color = BLACK;
+    }
+    ledmatrix.fillRect(10, 1, 2, 2, c_fill_color);
+
+    ledmatrix.drawRect(9, 5, 4, 4, Z_COLOR);
+    if (bZ) {
+      z_fill_color = Z_COLOR;
+    } else {
+      z_fill_color = BLACK;
+    }
+    ledmatrix.fillRect(10, 6, 2, 2, z_fill_color);
+
     ledmatrix.show();
   }
 }
