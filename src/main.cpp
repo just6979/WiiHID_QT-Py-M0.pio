@@ -112,6 +112,8 @@ void setup() {
     neopixel_status.fill(GREEN);
     neopixel_status.show();
   }
+
+  Serial.println("Done setup");
 }
 
 int jX = 0;
@@ -167,21 +169,24 @@ void loop() {
     // ensure it doesn't wrap (there might be a better way to do this)
     if (jX < -127) { jX = -127; }
     if (jY < -127) { jY = -127; }
+    bZ = acc.getButtonZ();
+    bC = acc.getButtonC();
+#ifdef DEBUG
     const int aX = acc.getAccelX();
     const int aY = acc.getAccelY();
     const int aZ = acc.getAccelZ();
-    bZ = acc.getButtonZ();
-    bC = acc.getButtonC();
-    Serial.printf(
-      "J[%4d,%4d];A[%3d,%3d,%3d];B[%s%s]\n",
-      jX,
-      jY,
-      aX,
-      aY,
-      aZ,
-      bZ ? "Z" : " ",
-      bC ? "C" : " "
-    );
+    // Serial.printf(
+    //   "J[%4d,%4d];A[%3d,%3d,%3d];B[%s%s]",
+    //   jX,
+    //   jY,
+    //   aX,
+    //   aY,
+    //   aZ,
+    //   bZ ? "Z" : " ",
+    //   bC ? "C" : " "
+    // );
+    // Serial.println();
+#endif
   } else if (acc.type == WIICLASSIC) {
     process_classic();
   }
@@ -239,8 +244,9 @@ void loop() {
 }
 
 void check_wii_accessory() {
+  Serial.println("Checking for Wii accesorries");
   acc.begin();
-  Serial.printf("Accessory Type: %d\n", acc.type);
+  Serial.printf("Wii accessory found, type: %d\n", acc.type);
   switch (acc.type) {
     case NUNCHUCK:
       Serial.println("Found Nunchuck");
