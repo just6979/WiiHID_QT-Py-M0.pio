@@ -232,28 +232,11 @@ void loop() {
   }
 
   if (is31_found) {
-    theta = atan2(jX, jY);
-    degrees = theta * (180.0 / M_PI);
-    degrees += degrees < 0 ? 360 : 0;
-    hue = static_cast<int>(degrees / 360.0 * 65535);
-    val = static_cast<int>(sqrt(pow(jX, 2) + pow(jY, 2)));
-    if (val == 0) {
-      // use white in the middle
-      color = Adafruit_NeoPixel::gamma32(
-        Adafruit_IS31FL3741_QT::ColorHSV(hue, 0, 255)
-      );
-    } else {
-      color = Adafruit_NeoPixel::gamma32(
-        Adafruit_IS31FL3741_QT::ColorHSV(hue, 255, 255)
-      );
-    }
-    pixel_color = Adafruit_IS31FL3741_QT::color565(color);
-
     const auto x = static_cast<int8_t>(7 * (jX - 127) / 255 + 3) - 2;
     const auto y = static_cast<int8_t>(7 * (jY - 127) / 255 + 3);
     x_pos = static_cast<int8_t>(6 + x);
     y_pos = static_cast<int8_t>(4 - y);
-    ledmatrix.drawRect(0, 0, 9, 9, pixel_color);
+    ledmatrix.drawRect(0, 0, 9, 9, JOY_COLOR);
     if (x_pos_old != x_pos || y_pos_old != y_pos) {
       // clear the old pixel
       ledmatrix.drawPixel(x_pos_old, y_pos_old, BLACK);
@@ -262,7 +245,7 @@ void loop() {
       y_pos_old = y_pos;
     }
     // draw the new pixel
-    ledmatrix.drawPixel(x_pos, y_pos, pixel_color);
+    ledmatrix.drawPixel(x_pos, y_pos, JOY_COLOR);
 
     ledmatrix.drawRect(9, 0, 4, 4, C_COLOR);
     if (bC) {
