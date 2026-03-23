@@ -69,8 +69,8 @@ constexpr uint8_t IS31_LED_SCALING = 0x88;
 constexpr uint8_t IS31_GLOBAL_CURRENT = 0x05;
 
 const auto JOY_COLOR = Adafruit_IS31FL3741_QT::color565(RED);
-const auto Z_COLOR = Adafruit_IS31FL3741_QT::color565(GREEN);
-const auto C_COLOR = Adafruit_IS31FL3741_QT::color565(BLUE);
+const auto Z_COLOR = Adafruit_IS31FL3741_QT::color565(PURPLE);
+const auto C_COLOR = Adafruit_IS31FL3741_QT::color565(ORANGE);
 uint32_t z_fill_color;
 uint32_t c_fill_color;
 
@@ -295,7 +295,7 @@ void update_is31() {
   const auto y = static_cast<int8_t>(7 * (jY - 127) / 255 + 3);
   x_pos = static_cast<int8_t>(6 + x);
   y_pos = static_cast<int8_t>(4 - y);
-  ledmatrix.drawRect(0, 0, 9, 9, JOY_COLOR);
+  ledmatrix.drawRect(0, 0, 9, 9, MODE_COLORS[mode]);
   if (x_pos_old != x_pos || y_pos_old != y_pos) {
     // clear the old pixel
     ledmatrix.drawPixel(x_pos_old, y_pos_old, BLACK);
@@ -304,7 +304,7 @@ void update_is31() {
     y_pos_old = y_pos;
   }
   // draw the new pixel
-  ledmatrix.drawPixel(x_pos, y_pos, JOY_COLOR);
+  ledmatrix.drawPixel(x_pos, y_pos, MODE_COLORS[mode]);
 
   ledmatrix.drawRect(9, 0, 4, 4, C_COLOR);
   if (bC) {
