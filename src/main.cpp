@@ -5,7 +5,9 @@
 #include <Adafruit_IS31FL3741.h>
 #include <Adafruit_Debounce.h>
 
+#ifdef DEBUG
 #define WAIT_FOR_SERIAL 1
+#endif
 
 const auto RED = Adafruit_NeoPixel::gamma32(0xFF0000);
 const auto ORANGE = Adafruit_NeoPixel::gamma32(0xFF8800);
