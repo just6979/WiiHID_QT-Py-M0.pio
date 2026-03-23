@@ -8,6 +8,7 @@
 #ifdef DEBUG
 #define WAIT_FOR_SERIAL 1
 #endif
+#define SHOW_NUNCHUK_DATA 0
 
 const auto RED = Adafruit_NeoPixel::gamma32(0xFF0000);
 const auto ORANGE = Adafruit_NeoPixel::gamma32(0xFF8800);
@@ -83,8 +84,8 @@ int8_t x_pos_old;
 int8_t y_pos_old;
 
 
-void check_wii_accessory();
-bool update_wiichuck();
+void check_wii_acc();
+bool update_wii_acc();
 void update_usb_hid();
 void update_is31();
 
@@ -93,7 +94,7 @@ void setup() {
   Serial.begin(115200);
 #if WAIT_FOR_SERIAL
   while (!Serial) {
-    delay(10);
+    ; // wait for serial port to connect. Needed for native USB
   }
 #endif
   Serial.println("Starting");
@@ -127,7 +128,7 @@ void setup() {
   }
 
   i2c->setClock(I2C_CLOCK);
-  check_wii_accessory();
+  check_wii_acc();
 
   if (ledmatrix.begin(IS31_ADDRESS, i2c)) {
     Serial.printf("IS41 found at 0x%X\n", IS31_ADDRESS);
@@ -165,20 +166,17 @@ void loop() {
     return;
   }
 
-  if (!update_wiichuck()) {
-    return;
-  }
-
-  if (usb_hid.ready()) {
-    update_usb_hid();
-  }
-
-  if (is31_found) {
-    update_is31();
+  if (update_wii_acc()) {
+    if (usb_hid.ready()) {
+      update_usb_hid();
+    }
+    if (is31_found) {
+      update_is31();
+    }
   }
 }
 
-void check_wii_accessory() {
+void check_wii_acc() {
   Serial.println("Checking for Wii accesorries");
   acc.begin();
   if (acc.type == NUNCHUCK) {
@@ -195,17 +193,19 @@ void check_wii_accessory() {
   }
 }
 
-bool update_wiichuck() {
+bool update_wii_acc() {
   if (!acc.isConnected()) {
-    Serial.println("No known Wii accessory connected, trying again in 2 seconds.");
+    Serial.println(
+      "No known Wii accessory connected, trying again in 2 seconds."
+    );
     neopixel_status.setPixelColor(0, YELLOW);
     neopixel_status.show();
     delay(2000);
     acc.reset();
-    check_wii_accessory();
+    check_wii_acc();
   }
   if (!acc.isConnected()) {
-      return false;
+    return false;
   }
 
   if (!acc.readData()) {
@@ -224,7 +224,7 @@ bool update_wiichuck() {
     if (jY < -127) { jY = -127; }
     bZ = acc.getButtonZ();
     bC = acc.getButtonC();
-#ifdef DEBUG
+#if SHOW_NUNCHUK_DATA
     const int aX = acc.getAccelX();
     const int aY = acc.getAccelY();
     const int aZ = acc.getAccelZ();
