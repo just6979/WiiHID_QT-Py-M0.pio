@@ -5,11 +5,6 @@
 #include <Adafruit_IS31FL3741.h>
 #include <Adafruit_Debounce.h>
 
-#ifdef DEBUG
-#define WAIT_FOR_SERIAL 1
-#endif
-#define SHOW_NUNCHUK_DATA 0
-
 const auto RED = Adafruit_NeoPixel::gamma32(0xFF0000);
 const auto ORANGE = Adafruit_NeoPixel::gamma32(0xFF8800);
 const auto YELLOW = Adafruit_NeoPixel::gamma32(0xFFFF00);
@@ -92,11 +87,14 @@ void update_is31();
 
 void setup() {
   Serial.begin(115200);
-#if WAIT_FOR_SERIAL
+
+#if DEBUG
+  auto start = millis();
   while (!Serial) {
-    ; // wait for serial port to connect. Needed for native USB
+    if (millis() - start > 2000) continue;
   }
 #endif
+
   Serial.println("Starting");
 
   Serial.println("Set up Little NeoPixel (board side) to show status");
@@ -224,7 +222,7 @@ bool update_wii_acc() {
     if (jY < -127) { jY = -127; }
     bZ = acc.getButtonZ();
     bC = acc.getButtonC();
-#if SHOW_NUNCHUK_DATA
+#if DEBUG
     const int aX = acc.getAccelX();
     const int aY = acc.getAccelY();
     const int aZ = acc.getAccelZ();
