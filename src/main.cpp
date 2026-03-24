@@ -40,7 +40,7 @@ const uint32_t MODE_COLORS[MODE_COUNT] = {
   // Magenta/Purple for Mouse
   // PURPLE,
 };
-uint8_t mode = MODE_L_STICK;
+uint8_t mode = MODE_D_PAD;
 
 TwoWire *i2c = &Wire;
 constexpr uint32_t I2C_CLOCK = 800000;
@@ -256,28 +256,19 @@ void update_usb_hid() {
   }
 
   if (mode == MODE_D_PAD) {
-    theta = atan2(jX, jY);
+    theta = atan2(jY, jX);
     degrees = theta * (180.0 / M_PI);
     degrees += degrees < 0 ? 360 : 0;
     val = static_cast<int>(sqrt(pow(jX, 2) + pow(jY, 2)));
     if (val > 64) {
-      // D-pad values go CCW starting from East
-      // E
-      if (degrees < 22.5 || degrees > 337.5) gp.hat = 1;
-      // NE
-      if (degrees < 67.5 && degrees > 22.5) gp.hat = 2;
-      // N
-      if (degrees < 112.5 && degrees > 67.5) gp.hat = 3;
-      // NW
-      if (degrees < 157.5 && degrees > 112.5) gp.hat = 4;
-      // W
-      if (degrees < 202.5 && degrees > 157.5) gp.hat = 5;
-      // SW
-      if (degrees < 247.5 && degrees > 202.5) gp.hat = 6;
-      // S
-      if (degrees < 292.5 && degrees > 247.5) gp.hat = 7;
-      // SE
-      if (degrees < 337.5 && degrees > 292.5) gp.hat = 8;
+      if (degrees < 22.5 || degrees > 337.5) gp.hat = GAMEPAD_HAT_RIGHT;
+      if (degrees < 67.5 && degrees > 22.5) gp.hat = GAMEPAD_HAT_UP_RIGHT;
+      if (degrees < 112.5 && degrees > 67.5) gp.hat = GAMEPAD_HAT_UP;
+      if (degrees < 157.5 && degrees > 112.5) gp.hat = GAMEPAD_HAT_UP_LEFT;
+      if (degrees < 202.5 && degrees > 157.5) gp.hat = GAMEPAD_HAT_LEFT;
+      if (degrees < 247.5 && degrees > 202.5) gp.hat = GAMEPAD_HAT_DOWN_LEFT;
+      if (degrees < 292.5 && degrees > 247.5) gp.hat = GAMEPAD_HAT_DOWN;
+      if (degrees < 337.5 && degrees > 292.5) gp.hat = GAMEPAD_HAT_DOWN_RIGHT;
     }
   }
 
