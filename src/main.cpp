@@ -9,7 +9,9 @@ const auto RED = Adafruit_NeoPixel::gamma32(0xFF0000);
 const auto ORANGE = Adafruit_NeoPixel::gamma32(0xFF8800);
 const auto YELLOW = Adafruit_NeoPixel::gamma32(0xFFFF00);
 const auto GREEN = Adafruit_NeoPixel::gamma32(0x00FF00);
+const auto LIGHT_BLUE = Adafruit_NeoPixel::gamma32(0x87CEFA);
 const auto BLUE = Adafruit_NeoPixel::gamma32(0x0000FF);
+const auto DARK_BLUE = Adafruit_NeoPixel::gamma32(0x0000AA);
 const auto INDIGO = Adafruit_NeoPixel::gamma32(0x8800FF);
 const auto PURPLE = Adafruit_NeoPixel::gamma32(0xFF00FF);
 const auto WHITE = Adafruit_NeoPixel::gamma32(0xFFFFFF);
@@ -25,28 +27,34 @@ constexpr uint8_t NEOPIXEL_MODE_BRIGHTNESS = 5;
 
 constexpr uint8_t MODE_L_STICK = 0;
 constexpr uint8_t MODE_D_PAD = 1;
-// constexpr uint8_t MODE_MOUSE = 2;
-constexpr uint8_t MODE_COUNT = 2;
+constexpr uint8_t MODE_MOUSE = 2;
+constexpr uint8_t MODE_GAME = 3;
+constexpr uint8_t MODE_COUNT = 4;
 const String MODE_NAMES[MODE_COUNT] = {
   "L-Stick",
   "D-Pad",
-  // "Mouse",
+  "Mouse",
+  "Game"
 };
 const uint32_t MODE_COLORS[MODE_COUNT] = {
-  // Blue for Left-stick
-  BLUE,
-  // Green for Gamepad (D-pad)
-  GREEN,
-  // Magenta/Purple for Mouse
-  // PURPLE,
+  // Left-stick
+  LIGHT_BLUE,
+  // D-pad
+  DARK_BLUE,
+  // "Magenta" for Mouse
+  PURPLE,
+  // Game
+  GREEN
+
 };
-uint8_t mode = MODE_D_PAD;
+// set initial mode minus 1 because next_mode() is called in setup()
+uint8_t mode = MODE_GAME - 1;
 
 TwoWire *i2c = &Wire;
-constexpr uint32_t I2C_CLOCK = 800000;
 
 Accessory acc;
-bool nunchuckAttached = false;
+bool nunchuck_found = false;
+uint8_t NUNCHUCK_ADDRESS = 0x52;
 int8_t jX = 0;
 int8_t jY = 0;
 bool bZ = false;
@@ -61,7 +69,7 @@ hid_gamepad_report_t gp;
 Adafruit_IS31FL3741_QT ledmatrix;
 bool is31_found = false;
 constexpr uint8_t IS31_ADDRESS = 0x30;
-constexpr uint8_t IS31_LED_SCALING = 0x88;
+constexpr uint8_t IS31_LED_SCALING = 0x11;
 constexpr uint8_t IS31_GLOBAL_CURRENT = 0x05;
 
 const auto JOY_COLOR = Adafruit_IS31FL3741_QT::color565(RED);
@@ -78,11 +86,20 @@ int8_t y_pos;
 int8_t x_pos_old;
 int8_t y_pos_old;
 
+ulong now;
+constexpr auto WII_UPDATE_DELAY = 2; // 500 Hz
+ulong last_wii_update = 0;
+constexpr auto HID_UPDATE_DELAY = 8; // 125 Hz
+ulong last_hid_update = 0;
+constexpr auto LED_UPDATE_DELAY = 16; // 60 Hz
+ulong last_led_update = 0;
 
+void next_mode();
 void check_wii_acc();
 bool update_wii_acc();
 void update_usb_hid();
-void update_is31();
+void is31_show_nunchuck();
+void update_game();
 
 
 void setup() {
@@ -103,15 +120,6 @@ void setup() {
   neopixel_status.fill(YELLOW);
   neopixel_status.show();
 
-  Serial.println("Set up Big NeoPixel (button side) to show mode");
-  neopixel_mode.begin();
-  neopixel_mode.setBrightness(NEOPIXEL_MODE_BRIGHTNESS);
-  neopixel_mode.setPixelColor(0, MODE_COLORS[mode]);
-  neopixel_mode.show();
-
-  Serial.println("Set up Big Button to change modes");
-  button_mode.begin();
-
   Serial.println("Set up TinyUSB HID");
   usb_hid.setPollInterval(2);
   usb_hid.setReportDescriptor(desc_hid_report, sizeof(desc_hid_report));
@@ -125,7 +133,6 @@ void setup() {
     neopixel_status.show();
   }
 
-  i2c->setClock(I2C_CLOCK);
   check_wii_acc();
 
   if (ledmatrix.begin(IS31_ADDRESS, i2c)) {
@@ -140,22 +147,25 @@ void setup() {
     Serial.printf("IS41 not found at 0x%X\n", IS31_ADDRESS);
   }
 
+  Serial.println("Set up Big NeoPixel (button side) to show mode");
+  neopixel_mode.begin();
+  neopixel_mode.setBrightness(NEOPIXEL_MODE_BRIGHTNESS);
+
+  Serial.println("Set up Big Button to change modes");
+  button_mode.begin();
+  next_mode();
+
   Serial.println("Done setup");
 }
 
 
 void loop() {
+  now = millis();
+
   button_mode.update();
-  if (button_mode.justPressed()) {
-    mode += 1;
-    if (mode >= MODE_COUNT) {
-      mode = 0;
-    }
-    Serial.print("Changing mode to ");
-    Serial.println(MODE_NAMES[mode]);
+  if (button_mode.justReleased()) {
+    next_mode();
   }
-  neopixel_mode.setPixelColor(0, MODE_COLORS[mode]);
-  neopixel_mode.show();
 
   if (!TinyUSBDevice.mounted()) {
     Serial.println("USB HID not mounted, trying again");
@@ -164,14 +174,47 @@ void loop() {
     return;
   }
 
-  if (update_wii_acc()) {
+  if (now - last_wii_update >= WII_UPDATE_DELAY) {
+    update_wii_acc();
+    last_wii_update = now;
+  }
+
+  if (now - last_hid_update >= HID_UPDATE_DELAY) {
     if (usb_hid.ready()) {
       update_usb_hid();
     }
-    if (is31_found) {
-      update_is31();
+    last_hid_update = now;
+  }
+
+  if (is31_found) {
+    if (now - last_led_update >= LED_UPDATE_DELAY) {
+      if (mode != MODE_GAME) {
+        is31_show_nunchuck();
+      } else {
+        update_game();
+      }
+      last_led_update = now;
     }
   }
+}
+
+void next_mode() {
+  mode++;
+  // TODO: remove this skip when mouse mode is implemented
+  if (mode == MODE_MOUSE) {
+    mode++;
+  }
+  if (mode == MODE_GAME && !is31_found) {
+    Serial.print("Can't play game without LED matrix plugged in.");
+    mode++;
+  }
+  if (mode >= MODE_COUNT) {
+    mode = 0;
+  }
+  Serial.print("Changing mode to ");
+  Serial.println(MODE_NAMES[mode]);
+  neopixel_mode.setPixelColor(0, MODE_COLORS[mode]);
+  neopixel_mode.show();
 }
 
 void check_wii_acc() {
@@ -179,13 +222,13 @@ void check_wii_acc() {
   acc.begin();
   if (acc.type == NUNCHUCK) {
     Serial.println("Found Nunchuck");
-    nunchuckAttached = true;
+    nunchuck_found = true;
     neopixel_status.fill(GREEN);
     neopixel_status.show();
   } else {
     Serial.printf("Missing or unknown accessory (type:%d)", acc.type);
     Serial.println();
-    nunchuckAttached = false;
+    nunchuck_found = false;
     neopixel_status.fill(YELLOW);
     neopixel_status.show();
   }
@@ -243,6 +286,7 @@ bool update_wii_acc() {
 }
 
 void update_usb_hid() {
+  // TODO: don't repeat sending identical reports
   // reset
   gp.x = 0;
   gp.y = 0;
@@ -279,7 +323,7 @@ void update_usb_hid() {
   usb_hid.sendReport(0, &gp, sizeof(gp));
 }
 
-void update_is31() {
+void is31_show_nunchuck() {
   const auto x = static_cast<int8_t>(7 * (jX - 127) / 255 + 3) - 2;
   const auto y = static_cast<int8_t>(7 * (jY - 127) / 255 + 3);
   x_pos = static_cast<int8_t>(6 + x);
@@ -295,7 +339,7 @@ void update_is31() {
   // draw the new pixel
   ledmatrix.drawPixel(x_pos, y_pos, MODE_COLORS[mode]);
 
-  ledmatrix.drawRect(9, 0, 4, 4, C_COLOR);
+  ledmatrix.drawRect(9, 0, 4, 4, MODE_COLORS[mode]);
   if (bC) {
     c_fill_color = C_COLOR;
   } else {
@@ -303,7 +347,9 @@ void update_is31() {
   }
   ledmatrix.fillRect(10, 1, 2, 2, c_fill_color);
 
-  ledmatrix.drawRect(9, 5, 4, 4, Z_COLOR);
+  ledmatrix.drawFastHLine(9, 4, 4, MODE_COLORS[mode]);
+
+  ledmatrix.drawRect(9, 5, 4, 4, MODE_COLORS[mode]);
   if (bZ) {
     z_fill_color = Z_COLOR;
   } else {
@@ -312,4 +358,41 @@ void update_is31() {
   ledmatrix.fillRect(10, 6, 2, 2, z_fill_color);
 
   ledmatrix.show();
+}
+
+uint8_t x = 0;
+uint8_t y = 0;
+constexpr uint8_t WIDTH = 13;
+constexpr uint8_t HEIGHT = 9;
+bool down = true;
+
+void update_game() {
+  ledmatrix.drawPixel(x, y, WHITE);
+  delay(1);
+  ledmatrix.drawPixel(x, y, BLACK);
+  if (!(y % 2)) {
+    x++;
+    if (x >= WIDTH) {
+      if (down) {
+        y++;
+      } else {
+        y--;
+      }
+    }
+  } else {
+    x--;
+    if (x <= 0) {
+      if (down) {
+        y++;
+      } else {
+        y--;
+      }
+    }
+    if (y >= HEIGHT - 1) {
+      down = false;
+    }
+    if (y <= 0) {
+      down = true;
+    }
+  }
 }
