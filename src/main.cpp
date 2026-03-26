@@ -69,8 +69,8 @@ hid_gamepad_report_t gp;
 Adafruit_IS31FL3741_QT ledmatrix;
 bool is31_found = false;
 constexpr uint8_t IS31_ADDRESS = 0x30;
-constexpr uint8_t IS31_LED_SCALING = 0x11;
-constexpr uint8_t IS31_GLOBAL_CURRENT = 0x05;
+constexpr uint8_t IS31_LED_SCALING = 0xFF;
+constexpr uint8_t IS31_GLOBAL_CURRENT = 0x01;
 
 const auto JOY_COLOR = Adafruit_IS31FL3741_QT::color565(RED);
 const auto Z_COLOR = Adafruit_IS31FL3741_QT::color565(PURPLE);
@@ -367,8 +367,6 @@ constexpr uint8_t HEIGHT = 9;
 bool down = true;
 
 void update_game() {
-  ledmatrix.drawPixel(x, y, WHITE);
-  delay(1);
   ledmatrix.drawPixel(x, y, BLACK);
   if (!(y % 2)) {
     x++;
@@ -380,7 +378,6 @@ void update_game() {
       }
     }
   } else {
-    x--;
     if (x <= 0) {
       if (down) {
         y++;
@@ -388,6 +385,7 @@ void update_game() {
         y--;
       }
     }
+    x--;
     if (y >= HEIGHT - 1) {
       down = false;
     }
@@ -395,4 +393,6 @@ void update_game() {
       down = true;
     }
   }
+  delay(10);
+  ledmatrix.drawPixel(x, y, WHITE);
 }
