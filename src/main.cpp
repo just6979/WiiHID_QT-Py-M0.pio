@@ -5,6 +5,8 @@
 #include <Adafruit_IS31FL3741.h>
 #include <Adafruit_Debounce.h>
 
+// #define SHOW_NUNCHUCK
+
 const auto RED = Adafruit_NeoPixel::gamma32(0xFF0000);
 const auto ORANGE = Adafruit_NeoPixel::gamma32(0xFF8800);
 const auto YELLOW = Adafruit_NeoPixel::gamma32(0xFFFF00);
@@ -106,9 +108,9 @@ void setup() {
   Serial.begin(115200);
 
 #if DEBUG
-  auto start = millis();
+  const auto start = millis();
   while (!Serial) {
-    if (millis() - start > 2000) continue;
+    if (millis() - start > 2000) break;
   }
 #endif
 
@@ -276,7 +278,7 @@ bool update_wii_acc() {
     if (jY < -127) { jY = -127; }
     bZ = acc.getButtonZ();
     bC = acc.getButtonC();
-#if DEBUG
+#if DEBUG && SHOW_NUNCHUCK
     const int aX = acc.getAccelX();
     const int aY = acc.getAccelY();
     const int aZ = acc.getAccelZ();
@@ -371,39 +373,20 @@ void is31_show_nunchuck() {
   ledmatrix.show();
 }
 
-uint8_t x = 0;
-uint8_t y = 0;
+uint8_t pixel_x = 0;
+uint8_t pixel_y = 0;
+uint8_t old_x = 0;
+uint8_t old_y = 0;
 constexpr uint8_t WIDTH = 13;
 constexpr uint8_t HEIGHT = 9;
-bool down = true;
 
 void update_game() {
-  ledmatrix.drawPixel(x, y, BLACK);
-  if (!(y % 2)) {
-    x++;
-    if (x >= WIDTH) {
-      if (down) {
-        y++;
-      } else {
-        y--;
-      }
-    }
-  } else {
-    if (x <= 0) {
-      if (down) {
-        y++;
-      } else {
-        y--;
-      }
-    }
-    x--;
-    if (y >= HEIGHT - 1) {
-      down = false;
-    }
-    if (y <= 0) {
-      down = true;
-    }
-  }
-  delay(10);
-  ledmatrix.drawPixel(x, y, WHITE);
+  old_x = pixel_x;
+  old_y = pixel_y;
+  pixel_x = 13 * jX / 255 + 6;
+  pixel_y = -(9 * jY / 255) + 4;
+  Serial.printf("[%d, %d] [%d, %d]", jX, jY, pixel_x, pixel_y);
+  Serial.println();
+  ledmatrix.drawPixel(old_x, old_y, BLACK);
+  ledmatrix.drawPixel(pixel_x, pixel_y, WHITE);
 }
