@@ -47,8 +47,7 @@ const uint32_t MODE_COLORS[MODE_COUNT] = {
   GREEN
 
 };
-// set initial mode minus 1 because next_mode() is called in setup()
-uint8_t mode = MODE_GAME - 1;
+uint8_t mode = MODE_GAME;
 
 TwoWire *i2c = &Wire;
 
@@ -94,6 +93,7 @@ ulong last_hid_update = 0;
 constexpr auto LED_UPDATE_DELAY = 16; // 60 Hz
 ulong last_led_update = 0;
 
+void set_mode(uint8_t new_mode);
 void next_mode();
 void check_wii_acc();
 bool update_wii_acc();
@@ -153,7 +153,7 @@ void setup() {
 
   Serial.println("Set up Big Button to change modes");
   button_mode.begin();
-  next_mode();
+  set_mode(mode);
 
   Serial.println("Done setup");
 }
@@ -198,23 +198,34 @@ void loop() {
   }
 }
 
-void next_mode() {
-  mode++;
-  // TODO: remove this skip when mouse mode is implemented
-  if (mode == MODE_MOUSE) {
-    mode++;
-  }
-  if (mode == MODE_GAME && !is31_found) {
-    Serial.print("Can't play game without LED matrix plugged in.");
-    mode++;
-  }
-  if (mode >= MODE_COUNT) {
-    mode = 0;
-  }
-  Serial.print("Changing mode to ");
+void set_mode(const uint8_t new_mode) {
+  mode = new_mode;
   Serial.println(MODE_NAMES[mode]);
   neopixel_mode.setPixelColor(0, MODE_COLORS[mode]);
   neopixel_mode.show();
+  ledmatrix.fill(BLACK);
+  Serial.print("Changed mode to ");
+}
+
+void next_mode() {
+  uint8_t new_mode = mode + 1;
+  Serial.println(new_mode);
+  if (new_mode == MODE_MOUSE) {
+    // TODO: remove this skip when mouse mode is implemented
+    Serial.println("Mouse mode not yet implemented.");
+    new_mode++;
+  }
+  Serial.println(new_mode);
+  if (new_mode == MODE_GAME && !is31_found) {
+    Serial.print("Can't play game without LED matrix plugged in.");
+    new_mode++;
+  }
+  Serial.println(new_mode);
+  if (new_mode >= MODE_COUNT) {
+    new_mode = 0;
+  }
+  Serial.println(new_mode);
+  set_mode(new_mode);
 }
 
 void check_wii_acc() {
