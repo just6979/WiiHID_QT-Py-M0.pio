@@ -81,21 +81,8 @@ const auto PURPLE_555 = Adafruit_IS31FL3741_QT::color565(PURPLE);
 const auto ORANGE_555 = Adafruit_IS31FL3741_QT::color565(ORANGE);
 const auto BLACK_555 = Adafruit_IS31FL3741_QT::color565(BLACK);
 
-double theta;
-double degrees;
-int val;
 float game_x;
 float game_y;
-short show_x;
-short show_y;
-
-ulong now;
-constexpr auto WII_UPDATE_DELAY = 2; // 500 Hz
-ulong last_wii_update = 0;
-constexpr auto HID_UPDATE_DELAY = 8; // 125 Hz
-ulong last_hid_update = 0;
-constexpr auto LED_UPDATE_DELAY = 16; // 60 Hz
-ulong last_led_update = 0;
 
 void set_mode(int new_mode);
 void next_mode();
@@ -164,6 +151,14 @@ void setup() {
 
 
 void loop() {
+  static ulong now;
+  static constexpr auto WII_UPDATE_DELAY = 2; // 500 Hz
+  static ulong last_wii_update = 0;
+  static constexpr auto HID_UPDATE_DELAY = 8; // 125 Hz
+  static ulong last_hid_update = 0;
+  static constexpr auto LED_UPDATE_DELAY = 16; // 60 Hz
+  static ulong last_led_update = 0;
+
   now = millis();
 
   button_mode.update();
@@ -311,8 +306,13 @@ bool update_wii_acc() {
 }
 
 void is31_show_nunchuck() {
-  const auto MODE_COLOR_555 = Adafruit_IS31FL3741_QT::color565(MODE_COLORS[mode]);
-    // show stick position with a dot in a 9x9 box on the left
+  static short show_x = 4;
+  static short show_y = 4;
+  const auto MODE_COLOR_555 = Adafruit_IS31FL3741_QT::color565(
+    MODE_COLORS[mode]
+  );
+
+  // show stick position with a dot in a 9x9 box on the left
   is31.drawRect(0, 0, 9, 9, MODE_COLOR_555);
   is31.drawPixel(show_x, show_y, BLACK_555);
   show_x = static_cast<short>((7 * (stick_x - 127) / 255) + 7);
@@ -330,7 +330,10 @@ void is31_show_nunchuck() {
 }
 
 void update_usb_hid() {
-  // TODO: don't repeat sending identical reports
+  static double theta;
+  static double degrees;
+  static int val;
+
   // reset
   gamepad_report.x = 0;
   gamepad_report.y = 0;
@@ -371,6 +374,8 @@ void update_usb_hid() {
   if (button_z) gamepad_report.buttons = (1U << 0);
   // C for second button
   if (button_c) gamepad_report.buttons = (1U << 1);
+
+  // TODO: don't repeat sending identical reports
   usb_hid.sendReport(0, &gamepad_report, sizeof(gamepad_report));
 }
 
@@ -381,7 +386,8 @@ void update_game(const ulong elapsed) {
 
   is31.drawPixel(pixel_x, pixel_y, BLACK);
 
-  const float speed = static_cast<float>(elapsed) / 1000.0F * MAX_PIXEL_PER_SECOND;
+  const float speed = static_cast<float>(elapsed) / 1000.0F *
+                      MAX_PIXEL_PER_SECOND;
   game_x = game_x + static_cast<float>(stick_x) / 127.0F * speed;
   game_y = game_y + static_cast<float>(stick_y) / 127.0F * speed;
 
