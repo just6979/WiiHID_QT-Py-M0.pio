@@ -53,25 +53,27 @@ uint8_t mode = MODE_GAME;
 
 TwoWire *i2c = &Wire;
 
-Accessory acc;
+Accessory nunchuck;
 bool nunchuck_found = false;
 uint8_t NUNCHUCK_ADDRESS = 0x52;
-int8_t jX = 0;
-int8_t jY = 0;
-bool bZ = false;
-bool bC = false;
+int8_t stick_x = 0;
+int8_t stick_y = 0;
+bool button_z = false;
+bool button_c = false;
 
 constexpr uint8_t desc_hid_report[] = {
   TUD_HID_REPORT_DESC_GAMEPAD()
 };
 Adafruit_USBD_HID usb_hid;
-hid_gamepad_report_t gp;
+hid_gamepad_report_t gamepad_report;
 
-Adafruit_IS31FL3741_QT ledmatrix;
+Adafruit_IS31FL3741_QT is31;
 bool is31_found = false;
 constexpr uint8_t IS31_ADDRESS = 0x30;
 constexpr uint8_t IS31_LED_SCALING = 0xFF;
 constexpr uint8_t IS31_GLOBAL_CURRENT = 0x01;
+constexpr uint8_t IS31_WIDTH = 13;
+constexpr uint8_t IS31_HEIGHT = 9;
 
 const auto JOY_COLOR = Adafruit_IS31FL3741_QT::color565(RED);
 const auto Z_COLOR = Adafruit_IS31FL3741_QT::color565(PURPLE);
@@ -97,7 +99,7 @@ ulong last_led_update = 0;
 
 void set_mode(uint8_t new_mode);
 void next_mode();
-void check_wii_acc();
+void check_nunchuck();
 bool update_wii_acc();
 void update_usb_hid();
 void is31_show_nunchuck();
@@ -135,16 +137,16 @@ void setup() {
     neopixel_status.show();
   }
 
-  check_wii_acc();
+  check_nunchuck();
 
-  if (ledmatrix.begin(IS31_ADDRESS, i2c)) {
+  if (is31.begin(IS31_ADDRESS, i2c)) {
     Serial.printf("IS41 found at 0x%X\n", IS31_ADDRESS);
     is31_found = true;
-    ledmatrix.setLEDscaling(IS31_LED_SCALING);
-    ledmatrix.setGlobalCurrent(IS31_GLOBAL_CURRENT);
-    ledmatrix.enable(true);
-    ledmatrix.fill(BLACK);
-    ledmatrix.show();
+    is31.setLEDscaling(IS31_LED_SCALING);
+    is31.setGlobalCurrent(IS31_GLOBAL_CURRENT);
+    is31.enable(true);
+    is31.fill(BLACK);
+    is31.show();
   } else {
     Serial.printf("IS41 not found at 0x%X\n", IS31_ADDRESS);
   }
@@ -202,11 +204,19 @@ void loop() {
 
 void set_mode(const uint8_t new_mode) {
   mode = new_mode;
-  Serial.println(MODE_NAMES[mode]);
+
   neopixel_mode.setPixelColor(0, MODE_COLORS[mode]);
   neopixel_mode.show();
-  ledmatrix.fill(BLACK);
+
+  is31.fill(BLACK);
+
+  if (mode == MODE_GAME) {
+    x_pos = 6;
+    y_pos = 4;
+  }
+
   Serial.print("Changed mode to ");
+  Serial.println(MODE_NAMES[mode]);
 }
 
 void next_mode() {
@@ -230,16 +240,16 @@ void next_mode() {
   set_mode(new_mode);
 }
 
-void check_wii_acc() {
+void check_nunchuck() {
   Serial.println("Checking for Wii accesorries");
-  acc.begin();
-  if (acc.type == NUNCHUCK) {
+  nunchuck.begin();
+  if (nunchuck.type == NUNCHUCK) {
     Serial.println("Found Nunchuck");
     nunchuck_found = true;
     neopixel_status.fill(GREEN);
     neopixel_status.show();
   } else {
-    Serial.printf("Missing or unknown accessory (type:%d)", acc.type);
+    Serial.printf("Missing or unknown accessory (type:%d)", nunchuck.type);
     Serial.println();
     nunchuck_found = false;
     neopixel_status.fill(YELLOW);
@@ -248,49 +258,49 @@ void check_wii_acc() {
 }
 
 bool update_wii_acc() {
-  if (!acc.isConnected()) {
+  if (!nunchuck.isConnected()) {
     Serial.println(
       "No known Wii accessory connected, trying again in 2 seconds."
     );
     neopixel_status.setPixelColor(0, YELLOW);
     neopixel_status.show();
     delay(2000);
-    acc.reset();
-    check_wii_acc();
+    nunchuck.reset();
+    check_nunchuck();
   }
-  if (!acc.isConnected()) {
+  if (!nunchuck.isConnected()) {
     return false;
   }
 
-  if (!acc.readData()) {
+  if (!nunchuck.readData()) {
     Serial.println("Could not read data from Wii Accessory, trying again");
     neopixel_status.setPixelColor(0, YELLOW);
     neopixel_status.show();
     return false;
   }
 
-  if (acc.type == NUNCHUCK) {
+  if (nunchuck.type == NUNCHUCK) {
     neopixel_status.setPixelColor(0, GREEN);
     neopixel_status.show();
-    jX = static_cast<int8_t>(acc.getJoyX() - 128);
-    jY = static_cast<int8_t>(acc.getJoyY() - 128);
-    if (jX < -127) { jX = -127; }
-    if (jY < -127) { jY = -127; }
-    bZ = acc.getButtonZ();
-    bC = acc.getButtonC();
+    stick_x = static_cast<int8_t>(nunchuck.getJoyX() - 128);
+    stick_y = static_cast<int8_t>(nunchuck.getJoyY() - 128);
+    if (stick_x < -127) { stick_x = -127; }
+    if (stick_y < -127) { stick_y = -127; }
+    button_z = nunchuck.getButtonZ();
+    button_c = nunchuck.getButtonC();
 #if DEBUG && SHOW_NUNCHUCK
-    const int aX = acc.getAccelX();
-    const int aY = acc.getAccelY();
-    const int aZ = acc.getAccelZ();
+    const int accel_x = nunchuck.getAccelX();
+    const int accel_y = nunchuck.getAccelY();
+    const int accel_y = nunchuck.getAccelZ();
     Serial.printf(
       "J[%4d,%4d];A[%3d,%3d,%3d];B[%s%s]",
-      jX,
-      jY,
-      aX,
-      aY,
-      aZ,
-      bZ ? "Z" : " ",
-      bC ? "C" : " "
+      stick_x,
+      stick_y,
+      accel_x,
+      accel_y,
+      accel_y,
+      button_z ? "Z" : " ",
+      button_c ? "C" : " "
     );
     Serial.println();
 #endif
@@ -301,92 +311,102 @@ bool update_wii_acc() {
 void update_usb_hid() {
   // TODO: don't repeat sending identical reports
   // reset
-  gp.x = 0;
-  gp.y = 0;
-  gp.hat = 0;
-  gp.buttons = 0;
+  gamepad_report.x = 0;
+  gamepad_report.y = 0;
+  gamepad_report.hat = 0;
+  gamepad_report.buttons = 0;
 
   if (mode == MODE_L_STICK) {
-    gp.x = jX;
+    gamepad_report.x = stick_x;
     // flip Y axis, not sure why
-    gp.y = static_cast<int8_t>(jY * -1);
+    gamepad_report.y = static_cast<int8_t>(stick_y * -1);
   }
 
   if (mode == MODE_D_PAD) {
-    theta = atan2(jY, jX);
+    theta = atan2(stick_y, stick_x);
     degrees = theta * (180.0 / M_PI);
     degrees += degrees < 0 ? 360 : 0;
-    val = static_cast<int>(sqrt(pow(jX, 2) + pow(jY, 2)));
+    val = static_cast<int>(sqrt(pow(stick_x, 2) + pow(stick_y, 2)));
     if (val > 64) {
-      if (degrees < 22.5 || degrees > 337.5) gp.hat = GAMEPAD_HAT_RIGHT;
-      if (degrees < 67.5 && degrees > 22.5) gp.hat = GAMEPAD_HAT_UP_RIGHT;
-      if (degrees < 112.5 && degrees > 67.5) gp.hat = GAMEPAD_HAT_UP;
-      if (degrees < 157.5 && degrees > 112.5) gp.hat = GAMEPAD_HAT_UP_LEFT;
-      if (degrees < 202.5 && degrees > 157.5) gp.hat = GAMEPAD_HAT_LEFT;
-      if (degrees < 247.5 && degrees > 202.5) gp.hat = GAMEPAD_HAT_DOWN_LEFT;
-      if (degrees < 292.5 && degrees > 247.5) gp.hat = GAMEPAD_HAT_DOWN;
-      if (degrees < 337.5 && degrees > 292.5) gp.hat = GAMEPAD_HAT_DOWN_RIGHT;
+      if (degrees < 22.5 || degrees > 337.5)
+        gamepad_report.hat = GAMEPAD_HAT_RIGHT;
+      if (degrees < 67.5 && degrees > 22.5)
+        gamepad_report.hat = GAMEPAD_HAT_UP_RIGHT;
+      if (degrees < 112.5 && degrees > 67.5)
+        gamepad_report.hat = GAMEPAD_HAT_UP;
+      if (degrees < 157.5 && degrees > 112.5)
+        gamepad_report.hat = GAMEPAD_HAT_UP_LEFT;
+      if (degrees < 202.5 && degrees > 157.5)
+        gamepad_report.hat = GAMEPAD_HAT_LEFT;
+      if (degrees < 247.5 && degrees > 202.5)
+        gamepad_report.hat = GAMEPAD_HAT_DOWN_LEFT;
+      if (degrees < 292.5 && degrees > 247.5)
+        gamepad_report.hat = GAMEPAD_HAT_DOWN;
+      if (degrees < 337.5 && degrees > 292.5)
+        gamepad_report.hat = GAMEPAD_HAT_DOWN_RIGHT;
     }
   }
 
   // Z for the first button
-  if (bZ) gp.buttons = (1U << 0);
+  if (button_z) gamepad_report.buttons = (1U << 0);
   // C for second button
-  if (bC) gp.buttons = (1U << 1);
-  usb_hid.sendReport(0, &gp, sizeof(gp));
+  if (button_c) gamepad_report.buttons = (1U << 1);
+  usb_hid.sendReport(0, &gamepad_report, sizeof(gamepad_report));
 }
 
 void is31_show_nunchuck() {
-  const auto x = static_cast<int8_t>(7 * (jX - 127) / 255 + 3) - 2;
-  const auto y = static_cast<int8_t>(7 * (jY - 127) / 255 + 3);
+  const auto x = static_cast<int8_t>(7 * (stick_x - 127) / 255 + 3) - 2;
+  const auto y = static_cast<int8_t>(7 * (stick_y - 127) / 255 + 3);
   x_pos = static_cast<int8_t>(6 + x);
   y_pos = static_cast<int8_t>(4 - y);
-  ledmatrix.drawRect(0, 0, 9, 9, MODE_COLORS[mode]);
+  is31.drawRect(0, 0, 9, 9, MODE_COLORS[mode]);
   if (x_pos_old != x_pos || y_pos_old != y_pos) {
     // clear the old pixel
-    ledmatrix.drawPixel(x_pos_old, y_pos_old, BLACK);
+    is31.drawPixel(x_pos_old, y_pos_old, BLACK);
     // save the new pixel
     x_pos_old = x_pos;
     y_pos_old = y_pos;
   }
   // draw the new pixel
-  ledmatrix.drawPixel(x_pos, y_pos, MODE_COLORS[mode]);
+  is31.drawPixel(x_pos, y_pos, MODE_COLORS[mode]);
 
-  ledmatrix.drawRect(9, 0, 4, 4, MODE_COLORS[mode]);
-  if (bC) {
+  is31.drawRect(9, 0, 4, 4, MODE_COLORS[mode]);
+  if (button_c) {
     c_fill_color = C_COLOR;
   } else {
     c_fill_color = BLACK;
   }
-  ledmatrix.fillRect(10, 1, 2, 2, c_fill_color);
+  is31.fillRect(10, 1, 2, 2, c_fill_color);
 
-  ledmatrix.drawFastHLine(9, 4, 4, MODE_COLORS[mode]);
+  is31.drawFastHLine(9, 4, 4, MODE_COLORS[mode]);
 
-  ledmatrix.drawRect(9, 5, 4, 4, MODE_COLORS[mode]);
-  if (bZ) {
+  is31.drawRect(9, 5, 4, 4, MODE_COLORS[mode]);
+  if (button_z) {
     z_fill_color = Z_COLOR;
   } else {
     z_fill_color = BLACK;
   }
-  ledmatrix.fillRect(10, 6, 2, 2, z_fill_color);
+  is31.fillRect(10, 6, 2, 2, z_fill_color);
 
-  ledmatrix.show();
+  is31.show();
 }
 
-uint8_t pixel_x = 0;
-uint8_t pixel_y = 0;
-uint8_t old_x = 0;
-uint8_t old_y = 0;
-constexpr uint8_t WIDTH = 13;
-constexpr uint8_t HEIGHT = 9;
-
 void update_game() {
-  old_x = pixel_x;
-  old_y = pixel_y;
-  pixel_x = 13 * jX / 255 + 6;
-  pixel_y = -(9 * jY / 255) + 4;
-  Serial.printf("[%d, %d] [%d, %d]", jX, jY, pixel_x, pixel_y);
+  is31.drawPixel(x_pos, y_pos, BLACK);
+  if (stick_x > 64) {
+    if (x_pos++ >= IS31_WIDTH) x_pos = 0;
+  }
+  else if (stick_x < -64) {
+    if (x_pos-- < 0) x_pos = IS31_WIDTH;
+  }
+
+  if (stick_y < -64) {
+    if (y_pos++ >= IS31_HEIGHT) y_pos = 0;
+  } else if (stick_y > 64) {
+    if (y_pos-- < 0) y_pos = IS31_HEIGHT;
+  }
+
+  Serial.printf("[%d, %d] [%d, %d]", stick_x, stick_y, x_pos, y_pos);
   Serial.println();
-  ledmatrix.drawPixel(old_x, old_y, BLACK);
-  ledmatrix.drawPixel(pixel_x, pixel_y, WHITE);
+  is31.drawPixel(x_pos, y_pos, WHITE);
 }
