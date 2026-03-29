@@ -50,7 +50,7 @@ const uint32_t MODE_COLORS[MODE_COUNT] = {
   GREEN
 
 };
-int mode = MODE_GAME;
+int mode = MODE_D_PAD;
 
 TwoWire *i2c = &Wire;
 
@@ -315,8 +315,16 @@ void is31_show_nunchuck() {
   // show stick position with a dot in a 9x9 box on the left
   is31.drawRect(0, 0, 9, 9, MODE_COLOR_555);
   is31.drawPixel(show_x, show_y, BLACK_555);
-  show_x = static_cast<short>((7 * (stick_x - 127) / 255) + 7);
-  show_y = static_cast<short>((7 * (stick_y - 127) / 255) + 7);
+  if (mode == MODE_L_STICK) {
+    show_x = static_cast<short>((7 * (stick_x - 127) / 255) + 7);
+    show_y = static_cast<short>((7 * (stick_y - 127) / 255) + 7);
+  } else if (mode == MODE_D_PAD) {
+    show_x = show_y = 4;
+    if (stick_x >= 64) show_x += 3;
+    if (stick_x <= -64) show_x -= 3;
+    if (stick_y >= 64) show_y += 3;
+    if (stick_y <= -64) show_y -= 3;
+  }
   is31.drawPixel(show_x, show_y, MODE_COLOR_555);
   // show button presses in two 4x4 boxes on the right
   is31.drawRect(9, 0, 4, 4, MODE_COLOR_555);
