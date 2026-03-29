@@ -4,6 +4,7 @@
 #include <WiiChuck.h>
 #include <Adafruit_IS31FL3741.h>
 #include <Adafruit_Debounce.h>
+#include <cmath>
 
 // #define SHOW_NUNCHUCK
 
@@ -84,10 +85,10 @@ uint32_t c_fill_color;
 double theta;
 double degrees;
 int32_t val;
-int8_t x_pos;
-int8_t y_pos;
-int8_t x_pos_old;
-int8_t y_pos_old;
+float game_x;
+float game_y;
+int8_t show_x;
+int8_t show_y;
 
 ulong now;
 constexpr auto WII_UPDATE_DELAY = 2; // 500 Hz
@@ -103,7 +104,7 @@ void check_nunchuck();
 bool update_wii_acc();
 void update_usb_hid();
 void is31_show_nunchuck();
-void update_game();
+void update_game(ulong elapsed);
 
 
 void setup() {
@@ -191,11 +192,12 @@ void loop() {
   }
 
   if (is31_found) {
-    if (now - last_led_update >= LED_UPDATE_DELAY) {
+    ulong elapsed = now - last_led_update;
+    if (elapsed >= LED_UPDATE_DELAY) {
       if (mode != MODE_GAME) {
         is31_show_nunchuck();
       } else {
-        update_game();
+        update_game(elapsed);
       }
       last_led_update = now;
     }
@@ -211,8 +213,8 @@ void set_mode(const uint8_t new_mode) {
   is31.fill(BLACK);
 
   if (mode == MODE_GAME) {
-    x_pos = 6;
-    y_pos = 4;
+    game_x = 6;
+    game_y = 4;
   }
 
   Serial.print("Changed mode to ");
@@ -308,6 +310,26 @@ bool update_wii_acc() {
   return true;
 }
 
+void is31_show_nunchuck() {
+  // show stick position with a dot in in a 9x9 box on the left
+  is31.drawRect(0, 0, 9, 9, MODE_COLORS[mode]);
+  is31.drawPixel(show_x, show_y, BLACK);
+  show_x = static_cast<int8_t>(4 + (7 * (stick_x - 127) / 255 + 3));
+  show_y = static_cast<int8_t>(4 - (7 * (stick_y - 127) / 255 + 3));
+  is31.drawPixel(show_x, show_y, MODE_COLORS[mode]);
+  // show button presses in two 4x4 boxes on the right
+  is31.drawRect(9, 0, 4, 4, MODE_COLORS[mode]);
+  c_fill_color = button_c ? C_COLOR : BLACK;
+  is31.fillRect(10, 1, 2, 2, c_fill_color);
+  is31.drawRect(9, 5, 4, 4, MODE_COLORS[mode]);
+  z_fill_color = button_z ? Z_COLOR : BLACK;
+  is31.fillRect(10, 6, 2, 2, z_fill_color);
+  // draw a line between the button boxes
+  is31.drawFastHLine(9, 4, 4, MODE_COLORS[mode]);
+
+  is31.show();
+}
+
 void update_usb_hid() {
   // TODO: don't repeat sending identical reports
   // reset
@@ -354,59 +376,37 @@ void update_usb_hid() {
   usb_hid.sendReport(0, &gamepad_report, sizeof(gamepad_report));
 }
 
-void is31_show_nunchuck() {
-  const auto x = static_cast<int8_t>(7 * (stick_x - 127) / 255 + 3) - 2;
-  const auto y = static_cast<int8_t>(7 * (stick_y - 127) / 255 + 3);
-  x_pos = static_cast<int8_t>(6 + x);
-  y_pos = static_cast<int8_t>(4 - y);
-  is31.drawRect(0, 0, 9, 9, MODE_COLORS[mode]);
-  if (x_pos_old != x_pos || y_pos_old != y_pos) {
-    // clear the old pixel
-    is31.drawPixel(x_pos_old, y_pos_old, BLACK);
-    // save the new pixel
-    x_pos_old = x_pos;
-    y_pos_old = y_pos;
-  }
-  // draw the new pixel
-  is31.drawPixel(x_pos, y_pos, MODE_COLORS[mode]);
+void update_game(const ulong elapsed) {
+  constexpr float MAX_PIXEL_PER_SECOND = 4.0F;
+  static short pixel_x = 0;
+  static short pixel_y = 0;
 
-  is31.drawRect(9, 0, 4, 4, MODE_COLORS[mode]);
-  if (button_c) {
-    c_fill_color = C_COLOR;
-  } else {
-    c_fill_color = BLACK;
-  }
-  is31.fillRect(10, 1, 2, 2, c_fill_color);
+  is31.drawPixel(pixel_x, pixel_y, BLACK);
 
-  is31.drawFastHLine(9, 4, 4, MODE_COLORS[mode]);
+  const float speed = static_cast<float>(elapsed) / 1000.0F * MAX_PIXEL_PER_SECOND;
+  game_x = game_x + static_cast<float>(stick_x) / 127.0F * speed;
+  game_y = game_y - static_cast<float>(stick_y) / 127.0F * speed;
 
-  is31.drawRect(9, 5, 4, 4, MODE_COLORS[mode]);
-  if (button_z) {
-    z_fill_color = Z_COLOR;
-  } else {
-    z_fill_color = BLACK;
-  }
-  is31.fillRect(10, 6, 2, 2, z_fill_color);
+  pixel_x = static_cast<short>(lround(game_x));
+  pixel_y = static_cast<short>(lround(game_y));
 
-  is31.show();
-}
-
-void update_game() {
-  is31.drawPixel(x_pos, y_pos, BLACK);
-  if (stick_x > 64) {
-    if (x_pos++ >= IS31_WIDTH) x_pos = 0;
-  }
-  else if (stick_x < -64) {
-    if (x_pos-- < 0) x_pos = IS31_WIDTH;
+  if (pixel_x >= IS31_WIDTH) {
+    pixel_x = 0;
+    game_x = pixel_x;
+  };
+  if (pixel_x < 0) {
+    pixel_x = IS31_WIDTH - 1;
+    game_x = pixel_x;
   }
 
-  if (stick_y < -64) {
-    if (y_pos++ >= IS31_HEIGHT) y_pos = 0;
-  } else if (stick_y > 64) {
-    if (y_pos-- < 0) y_pos = IS31_HEIGHT;
+  if (pixel_y >= IS31_HEIGHT) {
+    pixel_y = 0;
+    game_y = pixel_y;
+  }
+  if (pixel_y < 0) {
+    pixel_y = IS31_HEIGHT - 1;
+    game_y = pixel_y;
   }
 
-  Serial.printf("[%d, %d] [%d, %d]", stick_x, stick_y, x_pos, y_pos);
-  Serial.println();
-  is31.drawPixel(x_pos, y_pos, WHITE);
+  is31.drawPixel(pixel_x, pixel_y, WHITE);
 }
