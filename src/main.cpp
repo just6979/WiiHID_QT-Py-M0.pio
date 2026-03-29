@@ -25,14 +25,14 @@ Adafruit_NeoPixel neopixel_status(1, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel neopixel_mode(1, PIN_A3, NEO_GRB + NEO_KHZ800);
 Adafruit_Debounce button_mode(PIN_A2, LOW);
 
-constexpr uint8_t NEOPIXEL_STATUS_BRIGHTNESS = 1;
-constexpr uint8_t NEOPIXEL_MODE_BRIGHTNESS = 5;
+constexpr int NEOPIXEL_STATUS_BRIGHTNESS = 1;
+constexpr int NEOPIXEL_MODE_BRIGHTNESS = 5;
 
-constexpr uint8_t MODE_L_STICK = 0;
-constexpr uint8_t MODE_D_PAD = 1;
-constexpr uint8_t MODE_MOUSE = 2;
-constexpr uint8_t MODE_GAME = 3;
-constexpr uint8_t MODE_COUNT = 4;
+constexpr int MODE_L_STICK = 0;
+constexpr int MODE_D_PAD = 1;
+constexpr int MODE_MOUSE = 2;
+constexpr int MODE_GAME = 3;
+constexpr int MODE_COUNT = 4;
 const String MODE_NAMES[MODE_COUNT] = {
   "L-Stick",
   "D-Pad",
@@ -50,13 +50,13 @@ const uint32_t MODE_COLORS[MODE_COUNT] = {
   GREEN
 
 };
-uint8_t mode = MODE_GAME;
+int mode = MODE_GAME;
 
 TwoWire *i2c = &Wire;
 
 Accessory nunchuck;
 bool nunchuck_found = false;
-uint8_t NUNCHUCK_ADDRESS = 0x52;
+int NUNCHUCK_ADDRESS = 0x52;
 int8_t stick_x = 0;
 int8_t stick_y = 0;
 bool button_z = false;
@@ -70,25 +70,24 @@ hid_gamepad_report_t gamepad_report;
 
 Adafruit_IS31FL3741_QT is31;
 bool is31_found = false;
-constexpr uint8_t IS31_ADDRESS = 0x30;
-constexpr uint8_t IS31_LED_SCALING = 0xFF;
-constexpr uint8_t IS31_GLOBAL_CURRENT = 0x01;
-constexpr uint8_t IS31_WIDTH = 13;
-constexpr uint8_t IS31_HEIGHT = 9;
+constexpr int IS31_ADDRESS = 0x30;
+constexpr int IS31_LED_SCALING = 0xFF;
+constexpr int IS31_GLOBAL_CURRENT = 0x01;
+constexpr int IS31_WIDTH = 13;
+constexpr int IS31_HEIGHT = 9;
 
-const auto JOY_COLOR = Adafruit_IS31FL3741_QT::color565(RED);
-const auto Z_COLOR = Adafruit_IS31FL3741_QT::color565(PURPLE);
-const auto C_COLOR = Adafruit_IS31FL3741_QT::color565(ORANGE);
-uint32_t z_fill_color;
-uint32_t c_fill_color;
+const auto RED_555 = Adafruit_IS31FL3741_QT::color565(RED);
+const auto PURPLE_555 = Adafruit_IS31FL3741_QT::color565(PURPLE);
+const auto ORANGE_555 = Adafruit_IS31FL3741_QT::color565(ORANGE);
+const auto BLACK_555 = Adafruit_IS31FL3741_QT::color565(BLACK);
 
 double theta;
 double degrees;
-int32_t val;
+int val;
 float game_x;
 float game_y;
-int8_t show_x;
-int8_t show_y;
+short show_x;
+short show_y;
 
 ulong now;
 constexpr auto WII_UPDATE_DELAY = 2; // 500 Hz
@@ -98,7 +97,7 @@ ulong last_hid_update = 0;
 constexpr auto LED_UPDATE_DELAY = 16; // 60 Hz
 ulong last_led_update = 0;
 
-void set_mode(uint8_t new_mode);
+void set_mode(int new_mode);
 void next_mode();
 void check_nunchuck();
 bool update_wii_acc();
@@ -204,7 +203,7 @@ void loop() {
   }
 }
 
-void set_mode(const uint8_t new_mode) {
+void set_mode(const int new_mode) {
   mode = new_mode;
 
   neopixel_mode.setPixelColor(0, MODE_COLORS[mode]);
@@ -222,7 +221,7 @@ void set_mode(const uint8_t new_mode) {
 }
 
 void next_mode() {
-  uint8_t new_mode = mode + 1;
+  int new_mode = mode + 1;
   Serial.println(new_mode);
   if (new_mode == MODE_MOUSE) {
     // TODO: remove this skip when mouse mode is implemented
@@ -288,6 +287,7 @@ bool update_wii_acc() {
     stick_y = static_cast<int8_t>(nunchuck.getJoyY() - 128);
     if (stick_x < -127) { stick_x = -127; }
     if (stick_y < -127) { stick_y = -127; }
+    stick_y *= -1;
     button_z = nunchuck.getButtonZ();
     button_c = nunchuck.getButtonC();
 #if DEBUG && SHOW_NUNCHUCK
@@ -311,21 +311,20 @@ bool update_wii_acc() {
 }
 
 void is31_show_nunchuck() {
-  // show stick position with a dot in in a 9x9 box on the left
-  is31.drawRect(0, 0, 9, 9, MODE_COLORS[mode]);
-  is31.drawPixel(show_x, show_y, BLACK);
-  show_x = static_cast<int8_t>(4 + (7 * (stick_x - 127) / 255 + 3));
-  show_y = static_cast<int8_t>(4 - (7 * (stick_y - 127) / 255 + 3));
-  is31.drawPixel(show_x, show_y, MODE_COLORS[mode]);
+  const auto MODE_COLOR_555 = Adafruit_IS31FL3741_QT::color565(MODE_COLORS[mode]);
+    // show stick position with a dot in a 9x9 box on the left
+  is31.drawRect(0, 0, 9, 9, MODE_COLOR_555);
+  is31.drawPixel(show_x, show_y, BLACK_555);
+  show_x = static_cast<short>((7 * (stick_x - 127) / 255) + 7);
+  show_y = static_cast<short>((7 * (stick_y - 127) / 255) + 7);
+  is31.drawPixel(show_x, show_y, MODE_COLOR_555);
   // show button presses in two 4x4 boxes on the right
-  is31.drawRect(9, 0, 4, 4, MODE_COLORS[mode]);
-  c_fill_color = button_c ? C_COLOR : BLACK;
-  is31.fillRect(10, 1, 2, 2, c_fill_color);
-  is31.drawRect(9, 5, 4, 4, MODE_COLORS[mode]);
-  z_fill_color = button_z ? Z_COLOR : BLACK;
-  is31.fillRect(10, 6, 2, 2, z_fill_color);
+  is31.drawRect(9, 0, 4, 4, MODE_COLOR_555);
+  is31.fillRect(10, 1, 2, 2, button_c ? ORANGE_555 : BLACK_555);
+  is31.drawRect(9, 5, 4, 4, MODE_COLOR_555);
+  is31.fillRect(10, 6, 2, 2, button_z ? PURPLE_555 : BLACK_555);
   // draw a line between the button boxes
-  is31.drawFastHLine(9, 4, 4, MODE_COLORS[mode]);
+  is31.drawFastHLine(9, 4, 4, MODE_COLOR_555);
 
   is31.show();
 }
@@ -340,8 +339,7 @@ void update_usb_hid() {
 
   if (mode == MODE_L_STICK) {
     gamepad_report.x = stick_x;
-    // flip Y axis, not sure why
-    gamepad_report.y = static_cast<int8_t>(stick_y * -1);
+    gamepad_report.y = stick_y;
   }
 
   if (mode == MODE_D_PAD) {
@@ -385,7 +383,7 @@ void update_game(const ulong elapsed) {
 
   const float speed = static_cast<float>(elapsed) / 1000.0F * MAX_PIXEL_PER_SECOND;
   game_x = game_x + static_cast<float>(stick_x) / 127.0F * speed;
-  game_y = game_y - static_cast<float>(stick_y) / 127.0F * speed;
+  game_y = game_y + static_cast<float>(stick_y) / 127.0F * speed;
 
   pixel_x = static_cast<short>(lround(game_x));
   pixel_y = static_cast<short>(lround(game_y));
