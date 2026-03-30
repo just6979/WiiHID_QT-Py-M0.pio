@@ -8,6 +8,14 @@
 
 // #define SHOW_NUNCHUCK
 
+// helper to check memory usage
+extern "C" char *sbrk(int i);
+
+int mem_free() {
+  char stack_dummy = 0;
+  return &stack_dummy - sbrk(0);
+}
+
 const auto RED = Adafruit_NeoPixel::gamma32(0xFF0000);
 const auto ORANGE = Adafruit_NeoPixel::gamma32(0xFF8800);
 const auto YELLOW = Adafruit_NeoPixel::gamma32(0xFFFF00);
@@ -116,6 +124,8 @@ void setup() {
 
   Serial.println("Starting");
 
+  Serial.printf("Free RAM at start: %d bytes\n", mem_free());
+
   Serial.println("Set up Little NeoPixel (board side) to show status");
   neopixel_status.begin();
   neopixel_status.setBrightness(NEOPIXEL_STATUS_BRIGHTNESS);
@@ -158,7 +168,9 @@ void setup() {
   set_mode(mode);
 
   srand(millis());
+
   Serial.println("Done setup");
+  Serial.printf("Free RAM: %d bytes\n", mem_free());
 }
 
 
@@ -223,6 +235,7 @@ void set_mode(const int new_mode) {
 
   Serial.print("Changed mode to ");
   Serial.println(MODE_NAMES[mode]);
+  Serial.printf("Free RAM: %d bytes\n", mem_free());
 }
 
 void next_mode() {
