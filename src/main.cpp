@@ -93,7 +93,7 @@ constexpr int IS31_GLOBAL_CURRENT = 0x01;
 constexpr int IS31_WIDTH = 13;
 constexpr int IS31_HEIGHT = 9;
 
-boolean reset_game = false;
+boolean reset_game = true;
 
 void set_mode(int new_mode);
 void next_mode();
@@ -410,6 +410,7 @@ void update_game(const ulong elapsed) {
   };
 
   static ulong since_update = 0;
+  static short snake_speed = INITIAL_SNAKE_SPEED;
   static position_t head = {0, IS31_HEIGHT / 2};
   static position_t body[13 * 9] = {head};
   static ushort length = 1;
@@ -419,6 +420,7 @@ void update_game(const ulong elapsed) {
 
   if (reset_game) {
     since_update = 0;
+    snake_speed = INITIAL_SNAKE_SPEED;
     head = {0, IS31_HEIGHT / 2};
     body[0] = {head};
     length = 1;
@@ -438,11 +440,9 @@ void update_game(const ulong elapsed) {
     if (stick_y < -DEAD_ZONE && direction != NORTH) direction = SOUTH;
   }
 
- since_update += elapsed;
-
-  if (since_update < 1000 / INITIAL_SNAKE_SPEED) {
   // game state is updated based on snake speed
   since_update += elapsed;
+  if (since_update < 1000 / snake_speed) {
     // too early, don't update
     return;
   }
@@ -483,6 +483,7 @@ void update_game(const ulong elapsed) {
   is31.drawPixel(head.x, head.y, GREEN_555);
 
   if (head.x == apple_pos.x && head.y == apple_pos.y) {
+    snake_speed++;
     grow_apple = true;
   }
 
