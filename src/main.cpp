@@ -114,16 +114,17 @@ void update_game(ulong elapsed);
 
 void setup() {
   Serial.begin(115200);
-
-#if DEBUG
-  const auto start = millis();
+  #if DEBUG
+  // wait for serial for monitoring setup
+  ulong serial_time = millis();
   while (!Serial) {
-    if (millis() - start > 2000) break;
+    // but don't wait forever in case a debug build was left on the device
+    if (serial_time > 4000) break;
+    serial_time = millis();
   }
-#endif
-
   Serial.println("Starting");
   Serial.printf("Free RAM at start: %d bytes\n", mem_free());
+#endif
 
   Serial.println("Set up Little NeoPixel (board side) to show status");
   neopixel_status.begin();
@@ -170,8 +171,10 @@ void setup() {
 
   srand(millis());
 
-  Serial.println("Done setup");
+#ifdef DEBUG
+  Serial.printf("Setup done in %d ms\n", millis() - serial_time);
   Serial.printf("Free RAM: %d bytes\n", mem_free());
+#endif
 }
 
 void loop() {
