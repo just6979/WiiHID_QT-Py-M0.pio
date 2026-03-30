@@ -400,6 +400,7 @@ void update_usb_hid() {
 void update_game(const ulong elapsed) {
   // snake speed in pixels per second
   constexpr short INITIAL_SNAKE_SPEED = 2;
+  constexpr short DEAD_ZONE = 64;
   enum direction_t {
     NORTH, EAST, SOUTH, WEST
   };
@@ -425,29 +426,30 @@ void update_game(const ulong elapsed) {
     reset_game = false;
   }
 
-  since_update += elapsed;
-
-  if (since_update < 1000 / INITIAL_SNAKE_SPEED) {
-    return;
+  // stick position and direction are updated at full rate
+  if ((abs(stick_x)) >= (abs(stick_y))) {
+    // horizontal deflection is bigger or equal
+    // equal goes to horizontal because screen aspect is wider than tall
+    if (stick_x > DEAD_ZONE && direction != WEST) direction = EAST;
+    if (stick_x < -DEAD_ZONE && direction != EAST) direction = WEST;
+  } else {
+    // vertical deflection is bigger
+    if (stick_y > DEAD_ZONE && direction != SOUTH) direction = NORTH;
+    if (stick_y < -DEAD_ZONE && direction != NORTH) direction = SOUTH;
   }
 
+ since_update += elapsed;
+
+  if (since_update < 1000 / INITIAL_SNAKE_SPEED) {
+  // game state is updated based on snake speed
+  since_update += elapsed;
+    // too early, don't update
+    return;
+  }
   since_update = 0;
+  // it's time to update the game state
 
   is31.drawPixel(head.x, head.y, BLACK_555);
-
-  const boolean x_pos = stick_x > 64;
-  const boolean x_neg = stick_x < -64;
-  const boolean x_mid = !x_pos && !x_neg;
-  const boolean y_pos = stick_y > 64;
-  const boolean y_neg = stick_y < -64;
-  const boolean y_mid = !y_pos && !y_neg;
-
-  // don't change direction if the stick is diagonal
-  // also disallow changing direction exactly backwards
-  if (y_pos && x_mid && direction != SOUTH) direction = NORTH;
-  if (x_pos && y_mid && direction != WEST) direction = EAST;
-  if (y_neg && x_mid && direction != NORTH) direction = SOUTH;
-  if (x_neg && y_mid && direction != EAST) direction = WEST;
 
   switch (direction) {
     case NORTH:
