@@ -113,6 +113,17 @@ void update_game(ulong elapsed);
 
 
 void setup() {
+  // setup TinyUSB HID first to avoid the serial monitor disconnecting
+  usb_hid.setPollInterval(2);
+  usb_hid.setReportDescriptor(desc_hid_report, sizeof(desc_hid_report));
+  usb_hid.begin();
+  // reattach to ensure all drivers start
+  if (TinyUSBDevice.mounted()) {
+    TinyUSBDevice.detach();
+    delay(10);
+    TinyUSBDevice.attach();
+  }
+
   Serial.begin(115200);
   #if DEBUG
   // wait for serial for monitoring setup
@@ -131,20 +142,6 @@ void setup() {
   neopixel_status.setBrightness(NEOPIXEL_STATUS_BRIGHTNESS);
   neopixel_status.fill(YELLOW);
   neopixel_status.show();
-
-  Serial.println("Set up TinyUSB HID");
-  usb_hid.setPollInterval(2);
-  usb_hid.setReportDescriptor(desc_hid_report, sizeof(desc_hid_report));
-  usb_hid.begin();
-  // reattach to ensure all drivers start
-  if (TinyUSBDevice.mounted()) {
-    TinyUSBDevice.detach();
-    delay(10);
-    TinyUSBDevice.attach();
-    neopixel_status.fill(YELLOW);
-    neopixel_status.show();
-  }
-
 
   Serial.println("Set up Big NeoPixel (button side) to show mode");
   neopixel_mode.begin();
