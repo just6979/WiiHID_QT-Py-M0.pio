@@ -1,10 +1,10 @@
 #include <Arduino.h>
+#include <Adafruit_Debounce.h>
+#include <Adafruit_IS31FL3741.h>
 #include <Adafruit_NeoPixel.h>
 #include <Adafruit_TinyUSB.h>
-#include <WiiChuck.h>
-#include <Adafruit_IS31FL3741.h>
-#include <Adafruit_Debounce.h>
 #include <cmath>
+#include <WiiChuck.h>
 
 // #define SHOW_NUNCHUCK
 
@@ -123,7 +123,6 @@ void setup() {
 #endif
 
   Serial.println("Starting");
-
   Serial.printf("Free RAM at start: %d bytes\n", mem_free());
 
   Serial.println("Set up Little NeoPixel (board side) to show status");
@@ -145,7 +144,13 @@ void setup() {
     neopixel_status.show();
   }
 
-  check_nunchuck();
+
+  Serial.println("Set up Big NeoPixel (button side) to show mode");
+  neopixel_mode.begin();
+  neopixel_mode.setBrightness(NEOPIXEL_MODE_BRIGHTNESS);
+
+  Serial.println("Set up Big Button to change modes");
+  button_mode.begin();
 
   if (is31.begin(IS31_ADDRESS, i2c)) {
     Serial.printf("IS41 found at 0x%X\n", IS31_ADDRESS);
@@ -159,12 +164,8 @@ void setup() {
     Serial.printf("IS41 not found at 0x%X\n", IS31_ADDRESS);
   }
 
-  Serial.println("Set up Big NeoPixel (button side) to show mode");
-  neopixel_mode.begin();
-  neopixel_mode.setBrightness(NEOPIXEL_MODE_BRIGHTNESS);
+  check_nunchuck();
 
-  Serial.println("Set up Big Button to change modes");
-  button_mode.begin();
   set_mode(mode);
 
   srand(millis());
