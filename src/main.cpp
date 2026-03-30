@@ -409,13 +409,13 @@ void update_game(const ulong elapsed) {
     short x, y;
   };
 
-  static ulong since_update = 0;
-  static short snake_speed = INITIAL_SNAKE_SPEED;
-  static position_t head = {0, IS31_HEIGHT / 2};
-  static position_t body[13 * 9] = {head};
-  static ushort length = 1;
-  static direction_t direction = EAST;
-  static boolean grow_apple = true;
+  static ulong since_update;
+  static short snake_speed;
+  static position_t head ;
+  static position_t body[13 * 9];
+  static ushort length;
+  static direction_t direction;
+  static boolean grow_apple;
   static position_t apple_pos;
 
   if (reset_game) {
@@ -425,6 +425,7 @@ void update_game(const ulong elapsed) {
     body[0] = {head};
     length = 1;
     direction = EAST;
+    grow_apple = true;
     reset_game = false;
   }
 
