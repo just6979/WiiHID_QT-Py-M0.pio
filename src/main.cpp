@@ -21,12 +21,25 @@ const auto WHITE = Adafruit_NeoPixel::gamma32(0xFFFFFF);
 const auto GRAY = Adafruit_NeoPixel::gamma32(0x888888);
 const auto BLACK = Adafruit_NeoPixel::gamma32(0x000000);
 
-Adafruit_NeoPixel neopixel_status(1, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
-Adafruit_NeoPixel neopixel_mode(1, PIN_A3, NEO_GRB + NEO_KHZ800);
-Adafruit_Debounce button_mode(PIN_A2, LOW);
+const auto RED_555 = Adafruit_IS31FL3741_QT::color565(RED);
+const auto ORANGE_555 = Adafruit_IS31FL3741_QT::color565(ORANGE);
+const auto YELLOW_555 = Adafruit_IS31FL3741_QT::color565(YELLOW);
+const auto GREEN_555 = Adafruit_IS31FL3741_QT::color565(GREEN);
+const auto LIGHT_BLUE_555 = Adafruit_IS31FL3741_QT::color565(LIGHT_BLUE);
+const auto BLUE_555 = Adafruit_IS31FL3741_QT::color565(BLUE);
+const auto DARK_BLUE_555 = Adafruit_IS31FL3741_QT::color565(DARK_BLUE);
+const auto INDIGO_555 = Adafruit_IS31FL3741_QT::color565(INDIGO);
+const auto PURPLE_555 = Adafruit_IS31FL3741_QT::color565(PURPLE);
+const auto WHITE_555 = Adafruit_IS31FL3741_QT::color565(WHITE);
+const auto GRAY_555 = Adafruit_IS31FL3741_QT::color565(GRAY);
+const auto BLACK_555 = Adafruit_IS31FL3741_QT::color565(BLACK);
 
 constexpr int NEOPIXEL_STATUS_BRIGHTNESS = 1;
 constexpr int NEOPIXEL_MODE_BRIGHTNESS = 5;
+
+constexpr auto WII_UPDATE_DELAY = 2; // 500 Hz
+constexpr auto HID_UPDATE_DELAY = 8; // 125 Hz
+constexpr auto LED_UPDATE_DELAY = 16; // 60 Hz
 
 constexpr int MODE_L_STICK = 0;
 constexpr int MODE_D_PAD = 1;
@@ -50,7 +63,11 @@ const uint32_t MODE_COLORS[MODE_COUNT] = {
   GREEN
 
 };
-int mode = MODE_D_PAD;
+int mode = MODE_GAME;
+
+Adafruit_NeoPixel neopixel_status(1, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel neopixel_mode(1, PIN_A3, NEO_GRB + NEO_KHZ800);
+Adafruit_Debounce button_mode(PIN_A2, LOW);
 
 TwoWire *i2c = &Wire;
 
@@ -76,13 +93,7 @@ constexpr int IS31_GLOBAL_CURRENT = 0x01;
 constexpr int IS31_WIDTH = 13;
 constexpr int IS31_HEIGHT = 9;
 
-const auto RED_555 = Adafruit_IS31FL3741_QT::color565(RED);
-const auto PURPLE_555 = Adafruit_IS31FL3741_QT::color565(PURPLE);
-const auto ORANGE_555 = Adafruit_IS31FL3741_QT::color565(ORANGE);
-const auto BLACK_555 = Adafruit_IS31FL3741_QT::color565(BLACK);
-
-float game_x;
-float game_y;
+boolean reset_game = false;
 
 void set_mode(int new_mode);
 void next_mode();
@@ -152,11 +163,8 @@ void setup() {
 
 void loop() {
   static ulong now;
-  static constexpr auto WII_UPDATE_DELAY = 2; // 500 Hz
   static ulong last_wii_update = 0;
-  static constexpr auto HID_UPDATE_DELAY = 8; // 125 Hz
   static ulong last_hid_update = 0;
-  static constexpr auto LED_UPDATE_DELAY = 16; // 60 Hz
   static ulong last_led_update = 0;
 
   now = millis();
@@ -166,11 +174,13 @@ void loop() {
     next_mode();
   }
 
-  if (!TinyUSBDevice.mounted()) {
-    Serial.println("USB HID not mounted, trying again");
-    TinyUSBDevice.attach();
-    neopixel_status.setPixelColor(0, RED);
-    return;
+  if (mode != MODE_GAME) {
+    if (!TinyUSBDevice.mounted()) {
+      Serial.println("USB HID not mounted, trying again");
+      TinyUSBDevice.attach();
+      neopixel_status.setPixelColor(0, RED);
+      return;
+    }
   }
 
   if (now - last_wii_update >= WII_UPDATE_DELAY) {
@@ -186,7 +196,7 @@ void loop() {
   }
 
   if (is31_found) {
-    ulong elapsed = now - last_led_update;
+    const ulong elapsed = now - last_led_update;
     if (elapsed >= LED_UPDATE_DELAY) {
       if (mode != MODE_GAME) {
         is31_show_nunchuck();
@@ -207,8 +217,7 @@ void set_mode(const int new_mode) {
   is31.fill(BLACK);
 
   if (mode == MODE_GAME) {
-    game_x = 6;
-    game_y = 4;
+    reset_game = true;
   }
 
   Serial.print("Changed mode to ");
@@ -388,37 +397,85 @@ void update_usb_hid() {
 }
 
 void update_game(const ulong elapsed) {
-  constexpr float MAX_PIXEL_PER_SECOND = 4.0F;
-  static short pixel_x = 0;
-  static short pixel_y = 0;
-
-  is31.drawPixel(pixel_x, pixel_y, BLACK);
-
-  const float speed = static_cast<float>(elapsed) / 1000.0F *
-                      MAX_PIXEL_PER_SECOND;
-  game_x = game_x + static_cast<float>(stick_x) / 127.0F * speed;
-  game_y = game_y + static_cast<float>(stick_y) / 127.0F * speed;
-
-  pixel_x = static_cast<short>(lround(game_x));
-  pixel_y = static_cast<short>(lround(game_y));
-
-  if (pixel_x >= IS31_WIDTH) {
-    pixel_x = 0;
-    game_x = pixel_x;
+  // snake speed in pixels per second
+  constexpr short INITIAL_SNAKE_SPEED = 2;
+  enum direction_t {
+    NORTH, EAST, SOUTH, WEST
   };
-  if (pixel_x < 0) {
-    pixel_x = IS31_WIDTH - 1;
-    game_x = pixel_x;
+
+  struct position_t {
+    short x, y;
+  };
+
+  static ulong since_update = 0;
+  static position_t head = {0, IS31_HEIGHT / 2};
+  static position_t body[13 * 9] = {head};
+  static ushort length = 1;
+  static direction_t direction = EAST;
+  static ushort apples = 0;
+
+  if (reset_game) {
+    since_update = 0;
+    head = {0, IS31_HEIGHT / 2};
+    body[0] = {head};
+    length = 1;
+    direction = EAST;
+    apples = 0;
+    reset_game = false;
   }
 
-  if (pixel_y >= IS31_HEIGHT) {
-    pixel_y = 0;
-    game_y = pixel_y;
-  }
-  if (pixel_y < 0) {
-    pixel_y = IS31_HEIGHT - 1;
-    game_y = pixel_y;
+  since_update += elapsed;
+
+  if (since_update < 1000 / INITIAL_SNAKE_SPEED) {
+    return;
   }
 
-  is31.drawPixel(pixel_x, pixel_y, WHITE);
+  since_update = 0;
+
+  is31.drawPixel(head.x, head.y, BLACK_555);
+
+  const boolean x_pos = stick_x > 64;
+  const boolean x_neg = stick_x < -64;
+  const boolean x_mid = !x_pos && !x_neg;
+  const boolean y_pos = stick_y > 64;
+  const boolean y_neg = stick_y < -64;
+  const boolean y_mid = !y_pos && !y_neg;
+
+  // don't change direction if the stick is diagonal
+  // also disallow changing direction exactly backwards
+  if (y_pos && x_mid && direction != SOUTH) direction = NORTH;
+  if (x_pos && y_mid && direction != WEST) direction = EAST;
+  if (y_neg && x_mid && direction != NORTH) direction = SOUTH;
+  if (x_neg && y_mid && direction != EAST) direction = WEST;
+
+  switch (direction) {
+    case NORTH:
+      head.y += 1;
+      break;
+    case EAST:
+      head.x += 1;
+      break;
+    case SOUTH:
+      head.y -= 1;
+      break;
+    case WEST:
+      head.x -= 1;
+      break;
+  }
+
+  if (head.x >= IS31_WIDTH) {
+    head.x = 0;
+  };
+  if (head.x < 0) {
+    head.x = IS31_WIDTH - 1;
+  }
+
+  if (head.y >= IS31_HEIGHT) {
+    head.y = 0;
+  }
+  if (head.y < 0) {
+    head.y = IS31_HEIGHT - 1;
+  }
+
+  is31.drawPixel(head.x, head.y, GREEN_555);
 }
