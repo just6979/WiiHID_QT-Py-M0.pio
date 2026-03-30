@@ -157,6 +157,7 @@ void setup() {
   button_mode.begin();
   set_mode(mode);
 
+  srand(millis());
   Serial.println("Done setup");
 }
 
@@ -412,7 +413,8 @@ void update_game(const ulong elapsed) {
   static position_t body[13 * 9] = {head};
   static ushort length = 1;
   static direction_t direction = EAST;
-  static ushort apples = 0;
+  static boolean grow_apple = true;
+  static position_t apple_pos;
 
   if (reset_game) {
     since_update = 0;
@@ -420,7 +422,6 @@ void update_game(const ulong elapsed) {
     body[0] = {head};
     length = 1;
     direction = EAST;
-    apples = 0;
     reset_game = false;
   }
 
@@ -478,4 +479,16 @@ void update_game(const ulong elapsed) {
   }
 
   is31.drawPixel(head.x, head.y, GREEN_555);
+
+  if (head.x == apple_pos.x && head.y == apple_pos.y) {
+    grow_apple = true;
+  }
+
+  if (grow_apple) {
+    apple_pos.x = rand() % IS31_WIDTH;
+    apple_pos.y = rand() % IS31_HEIGHT;
+    grow_apple = false;
+  }
+
+  is31.drawPixel(apple_pos.x, apple_pos.y, RED_555);
 }
