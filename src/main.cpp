@@ -173,7 +173,6 @@ void setup() {
   Serial.printf("Free RAM: %d bytes\n", mem_free());
 }
 
-
 void loop() {
   static ulong now;
   static ulong last_wii_update = 0;
@@ -233,29 +232,24 @@ void set_mode(const int new_mode) {
     reset_game = true;
   }
 
-  Serial.print("Changed mode to ");
-  Serial.println(MODE_NAMES[mode]);
+  Serial.printf("Changed mode to %s\n", MODE_NAMES[mode].c_str());
   Serial.printf("Free RAM: %d bytes\n", mem_free());
 }
 
 void next_mode() {
   int new_mode = mode + 1;
-  Serial.println(new_mode);
   if (new_mode == MODE_MOUSE) {
     // TODO: remove this skip when mouse mode is implemented
     Serial.println("Mouse mode not yet implemented.");
     new_mode++;
   }
-  Serial.println(new_mode);
   if (new_mode == MODE_GAME && !is31_found) {
     Serial.print("Can't play game without LED matrix plugged in.");
     new_mode++;
   }
-  Serial.println(new_mode);
   if (new_mode >= MODE_COUNT) {
     new_mode = 0;
   }
-  Serial.println(new_mode);
   set_mode(new_mode);
 }
 
@@ -268,8 +262,7 @@ void check_nunchuck() {
     neopixel_status.fill(GREEN);
     neopixel_status.show();
   } else {
-    Serial.printf("Missing or unknown accessory (type:%d)", nunchuck.type);
-    Serial.println();
+    Serial.printf("Missing or unknown accessory (type: %d)\n", nunchuck.type);
     nunchuck_found = false;
     neopixel_status.fill(YELLOW);
     neopixel_status.show();
@@ -313,7 +306,7 @@ bool update_wii_acc() {
     const int accel_y = nunchuck.getAccelY();
     const int accel_y = nunchuck.getAccelZ();
     Serial.printf(
-      "J[%4d,%4d];A[%3d,%3d,%3d];B[%s%s]",
+      "J[%4d,%4d];A[%3d,%3d,%3d];B[%s%s]\n",
       stick_x,
       stick_y,
       accel_x,
@@ -322,7 +315,6 @@ bool update_wii_acc() {
       button_z ? "Z" : " ",
       button_c ? "C" : " "
     );
-    Serial.println();
 #endif
   }
   return true;
@@ -464,7 +456,7 @@ void update_game(const ulong elapsed) {
   for (int i = 0; i < length; i++) {
     is31.drawPixel(snake[i].x, snake[i].y, BLACK_555);
   }
-  
+
   switch (direction) {
     case NORTH:
       snake[0].y += 1;
