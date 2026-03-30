@@ -411,8 +411,7 @@ void update_game(const ulong elapsed) {
 
   static ulong since_update;
   static short snake_speed;
-  static position_t head ;
-  static position_t body[13 * 9];
+  static position_t snake[13 * 9];
   static ushort length;
   static direction_t direction;
   static boolean grow_apple;
@@ -421,8 +420,7 @@ void update_game(const ulong elapsed) {
   if (reset_game) {
     since_update = 0;
     snake_speed = INITIAL_SNAKE_SPEED;
-    head = {0, IS31_HEIGHT / 2};
-    body[0] = {head};
+    snake[0] = {0, IS31_HEIGHT / 2};
     length = 1;
     direction = EAST;
     grow_apple = true;
@@ -450,40 +448,44 @@ void update_game(const ulong elapsed) {
   since_update = 0;
   // it's time to update the game state
 
-  is31.drawPixel(head.x, head.y, BLACK_555);
-
+  for (int i = 0; i < length; i++) {
+    is31.drawPixel(snake[i].x, snake[i].y, BLACK_555);
+  }
+  
   switch (direction) {
     case NORTH:
-      head.y += 1;
+      snake[0].y += 1;
       break;
     case EAST:
-      head.x += 1;
+      snake[0].x += 1;
       break;
     case SOUTH:
-      head.y -= 1;
+      snake[0].y -= 1;
       break;
     case WEST:
-      head.x -= 1;
+      snake[0].x -= 1;
       break;
   }
 
-  if (head.x >= IS31_WIDTH) {
-    head.x = 0;
+  if (snake[0].x >= IS31_WIDTH) {
+    snake[0].x = 0;
   };
-  if (head.x < 0) {
-    head.x = IS31_WIDTH - 1;
+  if (snake[0].x < 0) {
+    snake[0].x = IS31_WIDTH - 1;
   }
 
-  if (head.y >= IS31_HEIGHT) {
-    head.y = 0;
+  if (snake[0].y >= IS31_HEIGHT) {
+    snake[0].y = 0;
   }
-  if (head.y < 0) {
-    head.y = IS31_HEIGHT - 1;
+  if (snake[0].y < 0) {
+    snake[0].y = IS31_HEIGHT - 1;
   }
 
-  is31.drawPixel(head.x, head.y, GREEN_555);
+  for (int i = 0; i < length; i++) {
+    is31.drawPixel(snake[i].x, snake[i].y, GREEN_555);
+  }
 
-  if (head.x == apple_pos.x && head.y == apple_pos.y) {
+  if (snake[0].x == apple_pos.x && snake[0].y == apple_pos.y) {
     snake_speed++;
     grow_apple = true;
   }
