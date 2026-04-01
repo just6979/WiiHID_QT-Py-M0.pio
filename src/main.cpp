@@ -101,6 +101,11 @@ constexpr int IS31_GLOBAL_CURRENT = 0x01;
 constexpr int IS31_WIDTH = 13;
 constexpr int IS31_HEIGHT = 9;
 
+boolean nunchuck_present = false;
+boolean should_check_nunchuck = false;
+ulong last_nunchuck_check = 0;
+ulong nunchuck_check_delay = 2000;
+
 boolean reset_game = true;
 
 void set_mode(int new_mode);
@@ -125,7 +130,7 @@ void setup() {
   }
 
   Serial.begin(115200);
-  #if DEBUG
+#if DEBUG
   // wait for serial for monitoring setup
   ulong serial_time = millis();
   while (!Serial) {
@@ -196,7 +201,23 @@ void loop() {
     }
   }
 
-  if (now - last_wii_update >= WII_UPDATE_DELAY) {
+  if (should_check_nunchuck && now - last_nunchuck_check >
+      nunchuck_check_delay) {
+    Serial.println("Checking for nunchucks");
+    nunchuck.reset();
+    check_nunchuck();
+    if (nunchuck.isConnected()) {
+      Serial.println("Found a nunchuck");
+      should_check_nunchuck = false;
+      nunchuck_found = true;
+    } else {
+      Serial.println("No nunchuck found");
+      should_check_nunchuck = true;
+      nunchuck_found = false;
+    }
+  }
+
+  if (nunchuck_found && now - last_wii_update >= WII_UPDATE_DELAY) {
     update_wii_acc();
     last_wii_update = now;
   }
@@ -277,11 +298,9 @@ bool update_wii_acc() {
     );
     neopixel_status.setPixelColor(0, YELLOW);
     neopixel_status.show();
-    delay(2000);
-    nunchuck.reset();
-    check_nunchuck();
-  }
-  if (!nunchuck.isConnected()) {
+    should_check_nunchuck = true;
+    nunchuck_found = false;
+    last_nunchuck_check = millis() - nunchuck_check_delay;
     return false;
   }
 
