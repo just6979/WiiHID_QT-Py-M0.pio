@@ -57,10 +57,10 @@ constexpr int MODE_MOUSE = 2;
 constexpr int MODE_GAME = 3;
 constexpr int MODE_COUNT = 4;
 const String MODE_NAMES[MODE_COUNT] = {
-  "L-Stick",
-  "D-Pad",
-  "Mouse",
-  "Game"
+  "L-STICK",
+  "D-PAD",
+  "MOUSE",
+  "GAME"
 };
 const uint32_t MODE_COLORS[MODE_COUNT] = {
   // Left-stick
@@ -73,7 +73,7 @@ const uint32_t MODE_COLORS[MODE_COUNT] = {
   GREEN
 
 };
-int mode = MODE_GAME;
+int mode = MODE_L_STICK;
 
 Adafruit_NeoPixel neopixel_status(1, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 Adafruit_NeoPixel neopixel_mode(1, PIN_A3, NEO_GRB + NEO_KHZ800);
@@ -95,23 +95,23 @@ constexpr uint8_t desc_hid_report[] = {
 Adafruit_USBD_HID usb_hid;
 hid_gamepad_report_t gamepad_report;
 
-Adafruit_IS31FL3741_QT is31;
-bool is31_found = false;
-constexpr int IS31_ADDRESS = 0x30;
-constexpr int IS31_LED_SCALING = 0xFF;
-constexpr int IS31_GLOBAL_CURRENT = 0x01;
-constexpr int IS31_WIDTH = 13;
-constexpr int IS31_HEIGHT = 9;
+Adafruit_IS31FL3741_QT led_13x9;
+bool led_13x9_found = false;
+constexpr int LED_13X9_ADDRESS = 0x30;
+constexpr int LED_13X9_LED_SCALING = 0xFF;
+constexpr int LED_13X9_GLOBAL_CURRENT = 0x01;
+constexpr int LED_13X9_WIDTH = 13;
+constexpr int LED_13X9_HEIGHT = 9;
 
-Adafruit_8x8matrix matrix;
-boolean matrix_found = false;
-constexpr int MATRIX_ADDRESS = 0x70;
-constexpr int MATRIX_WIDTH = 8;
-constexpr int MATRIX_HEIGHT = 8;
-ulong matrix_delay = 25;
-ulong matrix_last = 0;
-short matrix_scroll_x = 0;
-String matrix_text = "Hello World!";
+Adafruit_8x8matrix led_8x8;
+boolean led_8x8_found = false;
+constexpr int LED_8X8_ADDRESS = 0x70;
+constexpr int LED_8X8_BRIGHTNESS = 0;
+constexpr ulong LED_8X8_DELAY = 75;
+ulong led_8x8_last = 0;
+short led_8x8_scroll_x = 0;
+ushort led_8x8_scroll_width = 0;
+String led_8x8_text = "";
 
 
 boolean nunchuck_present = false;
@@ -126,7 +126,7 @@ void next_mode();
 void check_nunchuck();
 bool update_wii_acc();
 void update_usb_hid();
-void is31_show_nunchuck();
+void led_13x9_show_nunchuck();
 void update_game(ulong elapsed);
 
 
@@ -168,30 +168,34 @@ void setup() {
   Serial.println("Set up Big Button to change modes");
   button_mode.begin();
 
-  if (is31.begin(IS31_ADDRESS, i2c)) {
-    Serial.printf("IS41 found at 0x%X\n", IS31_ADDRESS);
-    is31_found = true;
-    is31.setLEDscaling(IS31_LED_SCALING);
-    is31.setGlobalCurrent(IS31_GLOBAL_CURRENT);
-    is31.enable(true);
-    is31.fill(BLACK);
-    is31.show();
+  if (led_13x9.begin(LED_13X9_ADDRESS, i2c)) {
+    Serial.printf("IS41 found at 0x%X\n", LED_13X9_ADDRESS);
+    led_13x9_found = true;
+    led_13x9.setLEDscaling(LED_13X9_LED_SCALING);
+    led_13x9.setGlobalCurrent(LED_13X9_GLOBAL_CURRENT);
+    led_13x9.enable(true);
+    led_13x9.fill(BLACK);
+    led_13x9.show();
   } else {
-    Serial.printf("IS41 not found at 0x%X\n", IS31_ADDRESS);
+    Serial.printf("IS41 not found at 0x%X\n", LED_13X9_ADDRESS);
   }
 
   check_nunchuck();
 
-  if (matrix.begin(MATRIX_ADDRESS)) {
-    Serial.printf("LED found at 0x%X\n", MATRIX_ADDRESS);
-    matrix_found = true;
-    matrix.setRotation(1);
-    matrix.setBrightness(4);
-    matrix.setTextSize(1);
-    matrix.setTextWrap(false); // we don't want text to wrap so it scrolls nicely
-    matrix.setTextColor(LED_ON);
+  if (led_8x8.begin(LED_8X8_ADDRESS)) {
+    Serial.printf("LED found at 0x%X\n", LED_8X8_ADDRESS);
+    led_8x8_found = true;
+    led_8x8.setRotation(0);
+    led_8x8.setBrightness(4);
+    led_8x8.setTextSize(1);
+    led_8x8.setTextWrap(false);
+    // we don't want text to wrap so it scrolls nicely
+    led_8x8.setTextColor(LED_ON);
   }
 
+  if (led_13x9_found) {
+    mode = MODE_GAME;
+  }
   set_mode(mode);
 
   srand(millis());
@@ -252,11 +256,11 @@ void loop() {
     last_hid_update = now;
   }
 
-  if (is31_found) {
+  if (led_13x9_found) {
     const ulong elapsed = now - last_led_update;
     if (elapsed >= LED_UPDATE_DELAY) {
       if (mode != MODE_GAME) {
-        is31_show_nunchuck();
+        led_13x9_show_nunchuck();
       } else {
         update_game(elapsed);
       }
@@ -264,14 +268,14 @@ void loop() {
     }
   }
 
-  if (now - matrix_last > matrix_delay) {
-    matrix_last = now;
-    matrix.clear();
-    matrix.setCursor(matrix_scroll_x, 1);
-    matrix.print(matrix_text);
-    matrix.writeDisplay();
-    if (matrix_scroll_x-- < -(matrix_text.length() * 6)) {
-      matrix_scroll_x = 0;
+  if (now - led_8x8_last > LED_8X8_DELAY) {
+    led_8x8_last = now;
+    led_8x8.clear();
+    led_8x8.setCursor(led_8x8_scroll_x, 1);
+    led_8x8.print(led_8x8_text);
+    led_8x8.writeDisplay();
+    if (led_8x8_scroll_x-- < -led_8x8_scroll_width) {
+      led_8x8_scroll_x = led_8x8.width();
     }
   }
 }
@@ -282,14 +286,20 @@ void set_mode(const int new_mode) {
   neopixel_mode.setPixelColor(0, MODE_COLORS[mode]);
   neopixel_mode.show();
 
-  if (is31_found) {
-    is31.fill(BLACK);
+  if (led_13x9_found) {
+    led_13x9.fill(BLACK);
   }
 
-  if (matrix_found) {
-    matrix_text = MODE_NAMES[mode];
-    matrix_scroll_x = 0;
-    matrix.clear();
+  if (led_8x8_found) {
+    led_8x8_text = MODE_NAMES[mode];
+    led_8x8_scroll_x = 0;
+    short temp_x, temp_y;
+    ushort temp_h;
+    led_8x8.getTextBounds(
+      led_8x8_text, 0, 0, &temp_x, &temp_y, &led_8x8_scroll_width, &temp_h
+    );
+    Serial.printf("text length: %d\n", led_8x8_scroll_width);
+    led_8x8.clear();
   }
 
   if (mode == MODE_GAME) {
@@ -307,8 +317,8 @@ void next_mode() {
     Serial.println("Mouse mode not yet implemented.");
     new_mode++;
   }
-  if (new_mode == MODE_GAME && !is31_found) {
-    Serial.print("Can't play game without LED matrix plugged in.");
+  if (new_mode == MODE_GAME && !(led_13x9_found)) {
+    Serial.print("Can't play game without an RGB LED matrix plugged in.");
     new_mode++;
   }
   if (new_mode >= MODE_COUNT) {
@@ -382,7 +392,7 @@ bool update_wii_acc() {
   return true;
 }
 
-void is31_show_nunchuck() {
+void led_13x9_show_nunchuck() {
   static short show_x = 4;
   static short show_y = 4;
   const auto MODE_COLOR_555 = Adafruit_IS31FL3741_QT::color565(
@@ -390,8 +400,8 @@ void is31_show_nunchuck() {
   );
 
   // show stick position with a dot in a 9x9 box on the left
-  is31.drawRect(0, 0, 9, 9, MODE_COLOR_555);
-  is31.drawPixel(show_x, show_y, BLACK_555);
+  led_13x9.drawRect(0, 0, 9, 9, MODE_COLOR_555);
+  led_13x9.drawPixel(show_x, show_y, BLACK_555);
   if (mode == MODE_L_STICK) {
     show_x = static_cast<short>((7 * (stick_x - 127) / 255) + 7);
     show_y = static_cast<short>((7 * (stick_y - 127) / 255) + 7);
@@ -402,16 +412,16 @@ void is31_show_nunchuck() {
     if (stick_y >= 64) show_y += 3;
     if (stick_y <= -64) show_y -= 3;
   }
-  is31.drawPixel(show_x, show_y, MODE_COLOR_555);
+  led_13x9.drawPixel(show_x, show_y, MODE_COLOR_555);
   // show button presses in two 4x4 boxes on the right
-  is31.drawRect(9, 0, 4, 4, MODE_COLOR_555);
-  is31.fillRect(10, 1, 2, 2, button_c ? ORANGE_555 : BLACK_555);
-  is31.drawRect(9, 5, 4, 4, MODE_COLOR_555);
-  is31.fillRect(10, 6, 2, 2, button_z ? PURPLE_555 : BLACK_555);
+  led_13x9.drawRect(9, 0, 4, 4, MODE_COLOR_555);
+  led_13x9.fillRect(10, 1, 2, 2, button_c ? ORANGE_555 : BLACK_555);
+  led_13x9.drawRect(9, 5, 4, 4, MODE_COLOR_555);
+  led_13x9.fillRect(10, 6, 2, 2, button_z ? PURPLE_555 : BLACK_555);
   // draw a line between the button boxes
-  is31.drawFastHLine(9, 4, 4, MODE_COLOR_555);
+  led_13x9.drawFastHLine(9, 4, 4, MODE_COLOR_555);
 
-  is31.show();
+  led_13x9.show();
 }
 
 void update_usb_hid() {
@@ -487,7 +497,7 @@ void update_game(const ulong elapsed) {
   if (reset_game) {
     since_update = 0;
     snake_speed = INITIAL_SNAKE_SPEED;
-    snake[0] = {0, IS31_HEIGHT / 2};
+    snake[0] = {0, LED_13X9_HEIGHT};
     length = 1;
     direction = EAST;
     grow_apple = true;
@@ -516,7 +526,7 @@ void update_game(const ulong elapsed) {
   // it's time to update the game state
 
   for (int i = 0; i < length; i++) {
-    is31.drawPixel(snake[i].x, snake[i].y, BLACK_555);
+    led_13x9.drawPixel(snake[i].x, snake[i].y, BLACK_555);
   }
 
   switch (direction) {
@@ -534,22 +544,22 @@ void update_game(const ulong elapsed) {
       break;
   }
 
-  if (snake[0].x >= IS31_WIDTH) {
+  if (snake[0].x >= LED_13X9_WIDTH) {
     snake[0].x = 0;
   };
   if (snake[0].x < 0) {
-    snake[0].x = IS31_WIDTH - 1;
+    snake[0].x = LED_13X9_HEIGHT - 1;
   }
 
-  if (snake[0].y >= IS31_HEIGHT) {
+  if (snake[0].y >= LED_13X9_HEIGHT) {
     snake[0].y = 0;
   }
   if (snake[0].y < 0) {
-    snake[0].y = IS31_HEIGHT - 1;
+    snake[0].y = LED_13X9_HEIGHT - 1;
   }
 
   for (int i = 0; i < length; i++) {
-    is31.drawPixel(snake[i].x, snake[i].y, GREEN_555);
+    led_13x9.drawPixel(snake[i].x, snake[i].y, GREEN_555);
   }
 
   if (snake[0].x == apple_pos.x && snake[0].y == apple_pos.y) {
@@ -558,10 +568,10 @@ void update_game(const ulong elapsed) {
   }
 
   if (grow_apple) {
-    apple_pos.x = rand() % IS31_WIDTH;
-    apple_pos.y = rand() % IS31_HEIGHT;
+    apple_pos.x = rand() % LED_13X9_WIDTH;
+    apple_pos.y = rand() % LED_13X9_HEIGHT;
     grow_apple = false;
   }
 
-  is31.drawPixel(apple_pos.x, apple_pos.y, RED_555);
+  led_13x9.drawPixel(apple_pos.x, apple_pos.y, RED_555);
 }
