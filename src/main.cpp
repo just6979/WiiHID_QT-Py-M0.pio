@@ -5,6 +5,8 @@
 #include <Adafruit_TinyUSB.h>
 #include <cmath>
 #include <WiiChuck.h>
+#include <Adafruit_GFX.h>
+#include "Adafruit_LEDBackpack.h"
 
 // #define SHOW_NUNCHUCK
 
@@ -101,6 +103,17 @@ constexpr int IS31_GLOBAL_CURRENT = 0x01;
 constexpr int IS31_WIDTH = 13;
 constexpr int IS31_HEIGHT = 9;
 
+Adafruit_8x8matrix matrix;
+boolean matrix_found = false;
+constexpr int MATRIX_ADDRESS = 0x70;
+constexpr int MATRIX_WIDTH = 8;
+constexpr int MATRIX_HEIGHT = 8;
+ulong matrix_delay = 25;
+ulong matrix_last = 0;
+short matrix_scroll_x = 0;
+String matrix_text = "Hello World!";
+
+
 boolean nunchuck_present = false;
 boolean should_check_nunchuck = false;
 ulong last_nunchuck_check = 0;
@@ -168,6 +181,16 @@ void setup() {
   }
 
   check_nunchuck();
+
+  if (matrix.begin(MATRIX_ADDRESS)) {
+    Serial.printf("LED found at 0x%X\n", MATRIX_ADDRESS);
+    matrix_found = true;
+    matrix.setRotation(1);
+    matrix.setBrightness(4);
+    matrix.setTextSize(1);
+    matrix.setTextWrap(false); // we don't want text to wrap so it scrolls nicely
+    matrix.setTextColor(LED_ON);
+  }
 
   set_mode(mode);
 
@@ -240,6 +263,17 @@ void loop() {
       last_led_update = now;
     }
   }
+
+  if (now - matrix_last > matrix_delay) {
+    matrix_last = now;
+    matrix.clear();
+    matrix.setCursor(matrix_scroll_x, 1);
+    matrix.print(matrix_text);
+    matrix.writeDisplay();
+    if (matrix_scroll_x-- < -(matrix_text.length() * 6)) {
+      matrix_scroll_x = 0;
+    }
+  }
 }
 
 void set_mode(const int new_mode) {
@@ -248,7 +282,15 @@ void set_mode(const int new_mode) {
   neopixel_mode.setPixelColor(0, MODE_COLORS[mode]);
   neopixel_mode.show();
 
-  is31.fill(BLACK);
+  if (is31_found) {
+    is31.fill(BLACK);
+  }
+
+  if (matrix_found) {
+    matrix_text = MODE_NAMES[mode];
+    matrix_scroll_x = 0;
+    matrix.clear();
+  }
 
   if (mode == MODE_GAME) {
     reset_game = true;
@@ -435,7 +477,7 @@ void update_game(const ulong elapsed) {
   };
 
   static ulong since_update;
-  static short snake_speed;
+  static ushort snake_speed;
   static position_t snake[13 * 9];
   static ushort length;
   static direction_t direction;
