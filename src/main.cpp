@@ -54,13 +54,13 @@ constexpr auto LED_UPDATE_DELAY = 16; // 60 Hz
 constexpr int MODE_L_STICK = 0;
 constexpr int MODE_D_PAD = 1;
 constexpr int MODE_MOUSE = 2;
-constexpr int MODE_GAME = 3;
+constexpr int MODE_SNAKE = 3;
 constexpr int MODE_COUNT = 4;
 const String MODE_NAMES[MODE_COUNT] = {
   "L-STICK",
   "D-PAD",
   "MOUSE",
-  "GAME"
+  "SNAKE"
 };
 const uint32_t MODE_COLORS[MODE_COUNT] = {
   // Left-stick
@@ -69,7 +69,7 @@ const uint32_t MODE_COLORS[MODE_COUNT] = {
   DARK_BLUE,
   // "Magenta" for Mouse
   PURPLE,
-  // Game
+  // Snake Game
   GREEN
 
 };
@@ -97,6 +97,7 @@ hid_gamepad_report_t gamepad_report;
 
 Adafruit_IS31FL3741_QT led_13x9;
 bool led_13x9_found = false;
+constexpr auto LED_13X9_NAME = "RGB Matrix (13x9, IS31FL3741)";
 constexpr int LED_13X9_ADDRESS = 0x30;
 constexpr int LED_13X9_LED_SCALING = 0xFF;
 constexpr int LED_13X9_GLOBAL_CURRENT = 0x01;
@@ -105,8 +106,11 @@ constexpr int LED_13X9_HEIGHT = 9;
 
 Adafruit_8x8matrix led_8x8;
 boolean led_8x8_found = false;
-constexpr int LED_8X8_ADDRESS = 0x70;
+constexpr auto LED_8X8_NAME = "LED Matrix (8x8, HT16K33)";
+constexpr int LED_8X8_ADDRESS = 0x72;
 constexpr int LED_8X8_BRIGHTNESS = 0;
+constexpr int LED_8X8_WIDTH = 8;
+constexpr int LED_8x8_HEIGHT = 8;
 constexpr ulong LED_8X8_DELAY = 75;
 ulong led_8x8_last = 0;
 short led_8x8_scroll_x = 0;
@@ -127,8 +131,8 @@ void check_nunchuck();
 bool update_wii_acc();
 void update_usb_hid();
 void led_13x9_show_nunchuck();
+void led_8x8_show_mode();
 void update_game(ulong elapsed);
-
 
 void setup() {
   // setup TinyUSB HID first to avoid the serial monitor disconnecting
@@ -168,8 +172,10 @@ void setup() {
   Serial.println("Set up Big Button to change modes");
   button_mode.begin();
 
+  check_nunchuck();
+
   if (led_13x9.begin(LED_13X9_ADDRESS, i2c)) {
-    Serial.printf("IS41 found at 0x%X\n", LED_13X9_ADDRESS);
+    Serial.printf("%s found at 0x%X\n", LED_13X9_NAME, LED_13X9_ADDRESS);
     led_13x9_found = true;
     led_13x9.setLEDscaling(LED_13X9_LED_SCALING);
     led_13x9.setGlobalCurrent(LED_13X9_GLOBAL_CURRENT);
@@ -177,13 +183,11 @@ void setup() {
     led_13x9.fill(BLACK);
     led_13x9.show();
   } else {
-    Serial.printf("IS41 not found at 0x%X\n", LED_13X9_ADDRESS);
+    Serial.printf("%d NOT found at 0x%X\n", LED_13X9_NAME, LED_13X9_ADDRESS);
   }
 
-  check_nunchuck();
-
   if (led_8x8.begin(LED_8X8_ADDRESS)) {
-    Serial.printf("LED found at 0x%X\n", LED_8X8_ADDRESS);
+    Serial.printf("%d found at 0x%X\n", LED_8X8_NAME, LED_8X8_ADDRESS);
     led_8x8_found = true;
     led_8x8.setRotation(0);
     led_8x8.setBrightness(4);
@@ -191,17 +195,19 @@ void setup() {
     led_8x8.setTextWrap(false);
     // we don't want text to wrap so it scrolls nicely
     led_8x8.setTextColor(LED_ON);
+  } else {
+    Serial.printf("%d NOT found at 0x%X\n", LED_8X8_NAME, LED_8X8_ADDRESS);
   }
 
   if (led_13x9_found) {
-    mode = MODE_GAME;
+    mode = MODE_SNAKE;
   }
   set_mode(mode);
 
-  srand(millis());
+  srand(micros());
 
 #ifdef DEBUG
-  Serial.printf("Setup done in %d ms\n", millis() - serial_time);
+  Serial.printf("Setup done in %d ms\n", micros() - serial_time);
   Serial.printf("Free RAM: %d bytes\n", mem_free());
 #endif
 }
@@ -219,7 +225,7 @@ void loop() {
     next_mode();
   }
 
-  if (mode != MODE_GAME) {
+  if (mode != MODE_SNAKE) {
     if (!TinyUSBDevice.mounted()) {
       Serial.println("USB HID not mounted, trying again");
       TinyUSBDevice.attach();
@@ -231,7 +237,6 @@ void loop() {
   if (should_check_nunchuck && now - last_nunchuck_check >
       nunchuck_check_delay) {
     Serial.println("Checking for nunchucks");
-    nunchuck.reset();
     check_nunchuck();
     if (nunchuck.isConnected()) {
       Serial.println("Found a nunchuck");
@@ -241,6 +246,7 @@ void loop() {
       Serial.println("No nunchuck found");
       should_check_nunchuck = true;
       nunchuck_found = false;
+      // nunchuck.reset();
     }
   }
 
@@ -259,7 +265,7 @@ void loop() {
   if (led_13x9_found) {
     const ulong elapsed = now - last_led_update;
     if (elapsed >= LED_UPDATE_DELAY) {
-      if (mode != MODE_GAME) {
+      if (mode != MODE_SNAKE) {
         led_13x9_show_nunchuck();
       } else {
         update_game(elapsed);
@@ -270,13 +276,7 @@ void loop() {
 
   if (now - led_8x8_last > LED_8X8_DELAY) {
     led_8x8_last = now;
-    led_8x8.clear();
-    led_8x8.setCursor(led_8x8_scroll_x, 1);
-    led_8x8.print(led_8x8_text);
-    led_8x8.writeDisplay();
-    if (led_8x8_scroll_x-- < -led_8x8_scroll_width) {
-      led_8x8_scroll_x = led_8x8.width();
-    }
+    led_8x8_show_mode();
   }
 }
 
@@ -302,7 +302,7 @@ void set_mode(const int new_mode) {
     led_8x8.clear();
   }
 
-  if (mode == MODE_GAME) {
+  if (mode == MODE_SNAKE) {
     reset_game = true;
   }
 
@@ -317,7 +317,7 @@ void next_mode() {
     Serial.println("Mouse mode not yet implemented.");
     new_mode++;
   }
-  if (new_mode == MODE_GAME && !(led_13x9_found)) {
+  if (new_mode == MODE_SNAKE && !(led_13x9_found)) {
     Serial.print("Can't play game without an RGB LED matrix plugged in.");
     new_mode++;
   }
@@ -328,9 +328,10 @@ void next_mode() {
 }
 
 void check_nunchuck() {
-  Serial.println("Checking for Wii accesorries");
+  Serial.println("Checking for Wii accessories");
   nunchuck.begin();
-  if (nunchuck.type == NUNCHUCK) {
+  Serial.printf("type = %d\n", nunchuck.type);
+  if (nunchuck.isConnected() && nunchuck.type == NUNCHUCK) {
     Serial.println("Found Nunchuck");
     nunchuck_found = true;
     neopixel_status.fill(GREEN);
@@ -472,6 +473,16 @@ void update_usb_hid() {
 
   // TODO: don't repeat sending identical reports
   usb_hid.sendReport(0, &gamepad_report, sizeof(gamepad_report));
+}
+
+void led_8x8_show_mode() {
+  led_8x8.clear();
+  led_8x8.setCursor(led_8x8_scroll_x, 1);
+  led_8x8.print(led_8x8_text);
+  led_8x8.writeDisplay();
+  if (led_8x8_scroll_x-- < -led_8x8_scroll_width) {
+    led_8x8_scroll_x = led_8x8.width();
+  }
 }
 
 void update_game(const ulong elapsed) {
