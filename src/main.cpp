@@ -6,7 +6,8 @@
 #include <cmath>
 #include <WiiChuck.h>
 #include <Adafruit_GFX.h>
-#include "Adafruit_LEDBackpack.h"
+
+#include <LED_8x8.h>
 
 // #define SHOW_NUNCHUCK
 
@@ -104,19 +105,7 @@ constexpr int LED_13X9_GLOBAL_CURRENT = 0x01;
 constexpr int LED_13X9_WIDTH = 13;
 constexpr int LED_13X9_HEIGHT = 9;
 
-Adafruit_8x8matrix led_8x8;
-boolean led_8x8_found = false;
-constexpr auto LED_8X8_NAME = "LED Matrix (8x8, HT16K33)";
-constexpr int LED_8X8_ADDRESS = 0x72;
-constexpr int LED_8X8_BRIGHTNESS = 0;
-constexpr int LED_8X8_WIDTH = 8;
-constexpr int LED_8x8_HEIGHT = 8;
-constexpr ulong LED_8X8_DELAY = 75;
-ulong led_8x8_last = 0;
-short led_8x8_scroll_x = 0;
-ushort led_8x8_scroll_width = 0;
-String led_8x8_text = "";
-
+auto led_8x8 = LED_8x8();
 
 boolean nunchuck_present = false;
 boolean should_check_nunchuck = false;
@@ -135,21 +124,11 @@ void set_mode(const int new_mode) {
     led_13x9.fill(BLACK);
   }
 
-  if (led_8x8_found) {
-    led_8x8_text = MODE_NAMES[mode];
-    led_8x8_scroll_x = 0;
-    short temp_x, temp_y;
-    ushort temp_h;
-    led_8x8.getTextBounds(
-      led_8x8_text, 0, 0, &temp_x, &temp_y, &led_8x8_scroll_width, &temp_h
-    );
-    Serial.printf("text length: %d\n", led_8x8_scroll_width);
-    led_8x8.clear();
-  }
-
   if (mode == MODE_SNAKE) {
     reset_game = true;
   }
+
+  led_8x8.set_text(MODE_NAMES[mode]);
 
   Serial.printf("Changed mode to %s\n", MODE_NAMES[mode].c_str());
   Serial.printf("Free RAM: %d bytes\n", mem_free());
@@ -320,16 +299,6 @@ void update_usb_hid() {
   usb_hid.sendReport(0, &gamepad_report, sizeof(gamepad_report));
 }
 
-void led_8x8_show_mode() {
-  led_8x8.clear();
-  led_8x8.setCursor(led_8x8_scroll_x, 1);
-  led_8x8.print(led_8x8_text);
-  led_8x8.writeDisplay();
-  if (led_8x8_scroll_x-- < -led_8x8_scroll_width) {
-    led_8x8_scroll_x = led_8x8.width();
-  }
-}
-
 void update_game(const ulong elapsed) {
   // snake speed in pixels per second
   constexpr short INITIAL_SNAKE_SPEED = 2;
@@ -484,23 +453,16 @@ void setup() {
     Serial.printf("%d NOT found at 0x%X\n", LED_13X9_NAME, LED_13X9_ADDRESS);
   }
 
-  if (led_8x8.begin(LED_8X8_ADDRESS)) {
-    Serial.printf("%d found at 0x%X\n", LED_8X8_NAME, LED_8X8_ADDRESS);
-    led_8x8_found = true;
-    led_8x8.setRotation(0);
-    led_8x8.setBrightness(4);
-    led_8x8.setTextSize(1);
-    led_8x8.setTextWrap(false);
-    // we don't want text to wrap so it scrolls nicely
-    led_8x8.setTextColor(LED_ON);
-  } else {
-    Serial.printf("%d NOT found at 0x%X\n", LED_8X8_NAME, LED_8X8_ADDRESS);
-  }
 
   if (led_13x9_found) {
     mode = MODE_SNAKE;
   }
   set_mode(mode);
+
+  led_8x8.begin();
+  if (led_8x8.is_attached()) {
+    led_8x8.set_text(MODE_NAMES[mode]);
+  }
 
   srand(micros());
 
@@ -572,8 +534,5 @@ void loop() {
     }
   }
 
-  if (now - led_8x8_last > LED_8X8_DELAY) {
-    led_8x8_last = now;
-    led_8x8_show_mode();
-  }
+  led_8x8.update(now);
 }
