@@ -1,13 +1,14 @@
-#include <Arduino.h>
 #include <Adafruit_Debounce.h>
-#include <Adafruit_IS31FL3741.h>
+#include <Adafruit_GFX.h>
 #include <Adafruit_NeoPixel.h>
 #include <Adafruit_TinyUSB.h>
+#include <Arduino.h>
 #include <cmath>
-#include <WiiChuck.h>
-#include <Adafruit_GFX.h>
-
+#include <colors.h>
 #include <LED_8x8.h>
+#include <modes.h>
+#include <RGB_13x9.h>
+#include <WiiChuck.h>
 
 // #define SHOW_NUNCHUCK
 
@@ -19,32 +20,6 @@ int mem_free() {
   return &stack_dummy - sbrk(0);
 }
 
-const auto RED = Adafruit_NeoPixel::gamma32(0xFF0000);
-const auto ORANGE = Adafruit_NeoPixel::gamma32(0xFF8800);
-const auto YELLOW = Adafruit_NeoPixel::gamma32(0xFFFF00);
-const auto GREEN = Adafruit_NeoPixel::gamma32(0x00FF00);
-const auto LIGHT_BLUE = Adafruit_NeoPixel::gamma32(0x87CEFA);
-const auto BLUE = Adafruit_NeoPixel::gamma32(0x0000FF);
-const auto DARK_BLUE = Adafruit_NeoPixel::gamma32(0x0000AA);
-const auto INDIGO = Adafruit_NeoPixel::gamma32(0x8800FF);
-const auto PURPLE = Adafruit_NeoPixel::gamma32(0xFF00FF);
-const auto WHITE = Adafruit_NeoPixel::gamma32(0xFFFFFF);
-const auto GRAY = Adafruit_NeoPixel::gamma32(0x888888);
-const auto BLACK = Adafruit_NeoPixel::gamma32(0x000000);
-
-const auto RED_555 = Adafruit_IS31FL3741_QT::color565(RED);
-const auto ORANGE_555 = Adafruit_IS31FL3741_QT::color565(ORANGE);
-const auto YELLOW_555 = Adafruit_IS31FL3741_QT::color565(YELLOW);
-const auto GREEN_555 = Adafruit_IS31FL3741_QT::color565(GREEN);
-const auto LIGHT_BLUE_555 = Adafruit_IS31FL3741_QT::color565(LIGHT_BLUE);
-const auto BLUE_555 = Adafruit_IS31FL3741_QT::color565(BLUE);
-const auto DARK_BLUE_555 = Adafruit_IS31FL3741_QT::color565(DARK_BLUE);
-const auto INDIGO_555 = Adafruit_IS31FL3741_QT::color565(INDIGO);
-const auto PURPLE_555 = Adafruit_IS31FL3741_QT::color565(PURPLE);
-const auto WHITE_555 = Adafruit_IS31FL3741_QT::color565(WHITE);
-const auto GRAY_555 = Adafruit_IS31FL3741_QT::color565(GRAY);
-const auto BLACK_555 = Adafruit_IS31FL3741_QT::color565(BLACK);
-
 constexpr int NEOPIXEL_STATUS_BRIGHTNESS = 1;
 constexpr int NEOPIXEL_MODE_BRIGHTNESS = 5;
 
@@ -52,28 +27,6 @@ constexpr auto WII_UPDATE_DELAY = 2; // 500 Hz
 constexpr auto HID_UPDATE_DELAY = 8; // 125 Hz
 constexpr auto LED_UPDATE_DELAY = 16; // 60 Hz
 
-constexpr int MODE_L_STICK = 0;
-constexpr int MODE_D_PAD = 1;
-constexpr int MODE_MOUSE = 2;
-constexpr int MODE_SNAKE = 3;
-constexpr int MODE_COUNT = 4;
-const String MODE_NAMES[MODE_COUNT] = {
-  "L-STICK",
-  "D-PAD",
-  "MOUSE",
-  "SNAKE"
-};
-const uint32_t MODE_COLORS[MODE_COUNT] = {
-  // Left-stick
-  LIGHT_BLUE,
-  // D-pad
-  DARK_BLUE,
-  // "Magenta" for Mouse
-  PURPLE,
-  // Snake Game
-  GREEN
-
-};
 int mode = MODE_L_STICK;
 
 Adafruit_NeoPixel neopixel_status(1, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
@@ -96,16 +49,8 @@ constexpr uint8_t desc_hid_report[] = {
 Adafruit_USBD_HID usb_hid;
 hid_gamepad_report_t gamepad_report;
 
-Adafruit_IS31FL3741_QT led_13x9;
-bool led_13x9_found = false;
-constexpr auto LED_13X9_NAME = "RGB Matrix (13x9, IS31FL3741)";
-constexpr int LED_13X9_ADDRESS = 0x30;
-constexpr int LED_13X9_LED_SCALING = 0xFF;
-constexpr int LED_13X9_GLOBAL_CURRENT = 0x01;
-constexpr int LED_13X9_WIDTH = 13;
-constexpr int LED_13X9_HEIGHT = 9;
-
 auto led_8x8 = LED_8x8();
+auto rgb_13x9 = RGB_13x9();
 
 boolean nunchuck_present = false;
 boolean should_check_nunchuck = false;
@@ -120,15 +65,16 @@ void set_mode(const int new_mode) {
   neopixel_mode.setPixelColor(0, MODE_COLORS[mode]);
   neopixel_mode.show();
 
-  if (led_13x9_found) {
-    led_13x9.fill(BLACK);
+  if (led_8x8.is_attached()) {
+    led_8x8.set_text(MODE_NAMES[mode]);
   }
 
-  if (mode == MODE_SNAKE) {
-    reset_game = true;
+  if (rgb_13x9.is_attached()) {
+    rgb_13x9.clear();
+    if (mode == MODE_SNAKE) {
+      rgb_13x9.reset_game();
+    }
   }
-
-  led_8x8.set_text(MODE_NAMES[mode]);
 
   Serial.printf("Changed mode to %s\n", MODE_NAMES[mode].c_str());
   Serial.printf("Free RAM: %d bytes\n", mem_free());
@@ -141,8 +87,8 @@ void next_mode() {
     Serial.println("Mouse mode not yet implemented.");
     new_mode++;
   }
-  if (new_mode == MODE_SNAKE && !(led_13x9_found)) {
-    Serial.print("Can't play game without an RGB LED matrix plugged in.");
+  if (new_mode == MODE_SNAKE && !(rgb_13x9.is_attached())) {
+    Serial.print("Can't play game without the RGB LED matrix plugged in.");
     new_mode++;
   }
   if (new_mode >= MODE_COUNT) {
@@ -217,37 +163,6 @@ bool update_wii_acc() {
   return true;
 }
 
-void led_13x9_show_nunchuck() {
-  static short show_x = 4;
-  static short show_y = 4;
-  const auto MODE_COLOR_555 = Adafruit_IS31FL3741_QT::color565(
-    MODE_COLORS[mode]
-  );
-
-  // show stick position with a dot in a 9x9 box on the left
-  led_13x9.drawRect(0, 0, 9, 9, MODE_COLOR_555);
-  led_13x9.drawPixel(show_x, show_y, BLACK_555);
-  if (mode == MODE_L_STICK) {
-    show_x = static_cast<short>((7 * (stick_x - 127) / 255) + 7);
-    show_y = static_cast<short>((7 * (stick_y - 127) / 255) + 7);
-  } else if (mode == MODE_D_PAD) {
-    show_x = show_y = 4;
-    if (stick_x >= 64) show_x += 3;
-    if (stick_x <= -64) show_x -= 3;
-    if (stick_y >= 64) show_y += 3;
-    if (stick_y <= -64) show_y -= 3;
-  }
-  led_13x9.drawPixel(show_x, show_y, MODE_COLOR_555);
-  // show button presses in two 4x4 boxes on the right
-  led_13x9.drawRect(9, 0, 4, 4, MODE_COLOR_555);
-  led_13x9.fillRect(10, 1, 2, 2, button_c ? ORANGE_555 : BLACK_555);
-  led_13x9.drawRect(9, 5, 4, 4, MODE_COLOR_555);
-  led_13x9.fillRect(10, 6, 2, 2, button_z ? PURPLE_555 : BLACK_555);
-  // draw a line between the button boxes
-  led_13x9.drawFastHLine(9, 4, 4, MODE_COLOR_555);
-
-  led_13x9.show();
-}
 
 void update_usb_hid() {
   static double theta;
@@ -299,107 +214,6 @@ void update_usb_hid() {
   usb_hid.sendReport(0, &gamepad_report, sizeof(gamepad_report));
 }
 
-void update_game(const ulong elapsed) {
-  // snake speed in pixels per second
-  constexpr short INITIAL_SNAKE_SPEED = 2;
-  constexpr short DEAD_ZONE = 64;
-  enum direction_t {
-    NORTH, EAST, SOUTH, WEST
-  };
-
-  struct position_t {
-    short x, y;
-  };
-
-  static ulong since_update;
-  static ushort snake_speed;
-  static position_t snake[13 * 9];
-  static ushort length;
-  static direction_t direction;
-  static boolean grow_apple;
-  static position_t apple_pos;
-
-  if (reset_game) {
-    since_update = 0;
-    snake_speed = INITIAL_SNAKE_SPEED;
-    snake[0] = {0, LED_13X9_HEIGHT};
-    length = 1;
-    direction = EAST;
-    grow_apple = true;
-    reset_game = false;
-  }
-
-  // stick position and direction are updated at full rate
-  if ((abs(stick_x)) >= (abs(stick_y))) {
-    // horizontal deflection is bigger or equal
-    // equal goes to horizontal because screen aspect is wider than tall
-    if (stick_x > DEAD_ZONE && direction != WEST) direction = EAST;
-    if (stick_x < -DEAD_ZONE && direction != EAST) direction = WEST;
-  } else {
-    // vertical deflection is bigger
-    if (stick_y > DEAD_ZONE && direction != SOUTH) direction = NORTH;
-    if (stick_y < -DEAD_ZONE && direction != NORTH) direction = SOUTH;
-  }
-
-  // game state is updated based on snake speed
-  since_update += elapsed;
-  if (since_update < 1000 / snake_speed) {
-    // too early, don't update
-    return;
-  }
-  since_update = 0;
-  // it's time to update the game state
-
-  for (int i = 0; i < length; i++) {
-    led_13x9.drawPixel(snake[i].x, snake[i].y, BLACK_555);
-  }
-
-  switch (direction) {
-    case NORTH:
-      snake[0].y += 1;
-      break;
-    case EAST:
-      snake[0].x += 1;
-      break;
-    case SOUTH:
-      snake[0].y -= 1;
-      break;
-    case WEST:
-      snake[0].x -= 1;
-      break;
-  }
-
-  if (snake[0].x >= LED_13X9_WIDTH) {
-    snake[0].x = 0;
-  };
-  if (snake[0].x < 0) {
-    snake[0].x = LED_13X9_HEIGHT - 1;
-  }
-
-  if (snake[0].y >= LED_13X9_HEIGHT) {
-    snake[0].y = 0;
-  }
-  if (snake[0].y < 0) {
-    snake[0].y = LED_13X9_HEIGHT - 1;
-  }
-
-  for (int i = 0; i < length; i++) {
-    led_13x9.drawPixel(snake[i].x, snake[i].y, GREEN_555);
-  }
-
-  if (snake[0].x == apple_pos.x && snake[0].y == apple_pos.y) {
-    snake_speed++;
-    grow_apple = true;
-  }
-
-  if (grow_apple) {
-    apple_pos.x = rand() % LED_13X9_WIDTH;
-    apple_pos.y = rand() % LED_13X9_HEIGHT;
-    grow_apple = false;
-  }
-
-  led_13x9.drawPixel(apple_pos.x, apple_pos.y, RED_555);
-}
 
 void setup() {
   // setup TinyUSB HID first to avoid the serial monitor disconnecting
@@ -441,20 +255,8 @@ void setup() {
 
   check_nunchuck();
 
-  if (led_13x9.begin(LED_13X9_ADDRESS, i2c)) {
-    Serial.printf("%s found at 0x%X\n", LED_13X9_NAME, LED_13X9_ADDRESS);
-    led_13x9_found = true;
-    led_13x9.setLEDscaling(LED_13X9_LED_SCALING);
-    led_13x9.setGlobalCurrent(LED_13X9_GLOBAL_CURRENT);
-    led_13x9.enable(true);
-    led_13x9.fill(BLACK);
-    led_13x9.show();
-  } else {
-    Serial.printf("%d NOT found at 0x%X\n", LED_13X9_NAME, LED_13X9_ADDRESS);
-  }
-
-
-  if (led_13x9_found) {
+  rgb_13x9.begin();
+  if (rgb_13x9.is_attached()) {
     mode = MODE_SNAKE;
   }
   set_mode(mode);
@@ -476,7 +278,6 @@ void loop() {
   static ulong now;
   static ulong last_wii_update = 0;
   static ulong last_hid_update = 0;
-  static ulong last_led_update = 0;
 
   now = millis();
 
@@ -522,17 +323,11 @@ void loop() {
     last_hid_update = now;
   }
 
-  if (led_13x9_found) {
-    const ulong elapsed = now - last_led_update;
-    if (elapsed >= LED_UPDATE_DELAY) {
-      if (mode != MODE_SNAKE) {
-        led_13x9_show_nunchuck();
-      } else {
-        update_game(elapsed);
-      }
-      last_led_update = now;
-    }
+  if (led_8x8.is_attached()) {
+    led_8x8.update(now);
   }
 
-  led_8x8.update(now);
+  if (rgb_13x9.is_attached()) {
+    rgb_13x9.update(now, mode, nunchuck);
+  }
 }
