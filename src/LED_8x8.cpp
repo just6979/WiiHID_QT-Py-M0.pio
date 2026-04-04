@@ -58,7 +58,7 @@ int LED_8x8::set_text(const String &new_text, const boolean reset) {
 }
 
 boolean LED_8x8::update(const ulong now) {
-  if (attached && now - last_update < delay) {
+  if (!attached || now - last_update < delay) {
     return false;
   }
   last_update = now;
