@@ -16,7 +16,7 @@ RGB_13x9::RGB_13x9(
 boolean RGB_13x9::begin() {
   if (matrix.begin(address)) {
     Serial.printf(
-      "%s - S:0x%x, C:0x%x R:%d, D:%d, A:0x%x\n",
+      "%s: S:0x%x, C:0x%x R:%d, D:%d, A:0x%x\n",
       NAME.c_str(), scaling, current, rotation, delay, address
     );
     attached = true;

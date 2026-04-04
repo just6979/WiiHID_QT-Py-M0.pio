@@ -14,7 +14,7 @@ LED_8x8::LED_8x8(
 boolean LED_8x8::begin() {
   if (matrix.begin(address)) {
     Serial.printf(
-      "%s - B:%d, R:%d, D:%d, A:0x%x\n",
+      "%s: B:%d, R:%d, D:%d, A:0x%x\n",
       NAME.c_str(), brightness, rotation, delay, address
     );
     attached = true;

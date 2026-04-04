@@ -88,7 +88,7 @@ void next_mode() {
     new_mode++;
   }
   if (new_mode == MODE_SNAKE && !(rgb_13x9.is_attached())) {
-    Serial.print("Can't play game without the RGB LED matrix plugged in.");
+    Serial.println("Can't play game without the RGB LED matrix plugged in.");
     new_mode++;
   }
   if (new_mode >= MODE_COUNT) {
