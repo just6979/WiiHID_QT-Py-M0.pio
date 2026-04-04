@@ -67,7 +67,7 @@ boolean LED_8x8::update(const ulong now) {
   matrix.setCursor(scroll_x, 1);
   matrix.print(text);
   matrix.writeDisplay();
-  if (scroll_x-- < -scroll_width) {
+  if (scroll_x-- < -scroll_width + 2) {
     scroll_x = matrix.width();
   }
 
