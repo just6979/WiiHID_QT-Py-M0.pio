@@ -7,6 +7,7 @@
 #include <colors.h>
 #include <LED_8x8.h>
 #include <modes.h>
+#include <OLED_128x32.h>
 #include <RGB_13x9.h>
 #include <WiiChuck.h>
 
@@ -34,6 +35,8 @@ Adafruit_NeoPixel neopixel_mode(1, PIN_A3, NEO_GRB + NEO_KHZ800);
 Adafruit_Debounce button_mode(PIN_A2, LOW);
 
 TwoWire *i2c = &Wire;
+
+auto screen = OLED_128x32(i2c);
 
 Accessory nunchuck;
 bool nunchuck_found = false;
@@ -64,6 +67,10 @@ void set_mode(const int new_mode) {
 
   neopixel_mode.setPixelColor(0, MODE_COLORS[mode]);
   neopixel_mode.show();
+
+  if (screen.is_attached()) {
+    screen.set_text(MODE_NAMES[mode], false);
+  }
 
   if (led_8x8.is_attached()) {
     led_8x8.set_text(MODE_NAMES[mode]);
@@ -255,6 +262,11 @@ void setup() {
 
   check_nunchuck();
 
+  screen.begin();
+  if (screen.is_attached()) {
+    screen.set_text(MODE_NAMES[mode]);
+  }
+
   rgb_13x9.begin();
   if (rgb_13x9.is_attached()) {
     mode = MODE_SNAKE;
@@ -321,6 +333,10 @@ void loop() {
       update_usb_hid();
     }
     last_hid_update = now;
+  }
+
+  if (screen.is_attached()) {
+    screen.update(now);
   }
 
   if (led_8x8.is_attached()) {
