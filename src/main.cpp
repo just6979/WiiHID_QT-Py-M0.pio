@@ -68,8 +68,11 @@ TwoWire *i2c = &Wire;
 Accessory nunchuck;
 bool nunchuck_found = false;
 int NUNCHUCK_ADDRESS = 0x52;
-int8_t stick_x = 0;
-int8_t stick_y = 0;
+int stick_x = 0;
+int stick_y = 0;
+int accel_x = 0;
+int accel_y = 0;
+int accel_z = 0;
 bool button_z = false;
 bool button_c = false;
 
@@ -149,17 +152,17 @@ bool update_wii_acc() {
   if (nunchuck.type == NUNCHUCK) {
     neopixel_status.setPixelColor(0, GREEN);
     neopixel_status.show();
-    stick_x = static_cast<int8_t>(nunchuck.getJoyX() - 128);
-    stick_y = static_cast<int8_t>(nunchuck.getJoyY() - 128);
+    stick_x = nunchuck.getJoyX() - 128;
+    stick_y = nunchuck.getJoyY() - 128;
     if (stick_x < -127) { stick_x = -127; }
     if (stick_y < -127) { stick_y = -127; }
     stick_y *= -1;
+    accel_x = nunchuck.getAccelX();
+    accel_y = nunchuck.getAccelY();
+    accel_z = nunchuck.getAccelZ();
     button_z = nunchuck.getButtonZ();
     button_c = nunchuck.getButtonC();
 #if DEBUG && SHOW_NUNCHUCK
-    const int accel_x = nunchuck.getAccelX();
-    const int accel_y = nunchuck.getAccelY();
-    const int accel_y = nunchuck.getAccelZ();
     Serial.printf(
       "J[%4d,%4d];A[%3d,%3d,%3d];B[%s%s]\n",
       stick_x,
@@ -188,8 +191,8 @@ void update_usb_hid() {
   gamepad_report.buttons = 0;
 
   if (mode == MODE_L_STICK) {
-    gamepad_report.x = stick_x;
-    gamepad_report.y = stick_y;
+    gamepad_report.x = static_cast<int8_t>(stick_x);
+    gamepad_report.y = static_cast<int8_t>(stick_y);
   }
 
   if (mode == MODE_D_PAD) {
