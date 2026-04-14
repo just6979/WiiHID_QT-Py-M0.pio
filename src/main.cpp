@@ -4,14 +4,44 @@
 #include <Adafruit_TinyUSB.h>
 #include <Arduino.h>
 #include <cmath>
-#include <colors.h>
-#include <LED_8x8.h>
-#include <modes.h>
-#include <OLED_128x32.h>
-#include <RGB_13x9.h>
 #include <WiiChuck.h>
 
 // #define SHOW_NUNCHUCK
+
+const auto RED = Adafruit_NeoPixel::gamma32(0xFF0000);
+const auto ORANGE = Adafruit_NeoPixel::gamma32(0xFF8800);
+const auto YELLOW = Adafruit_NeoPixel::gamma32(0xFFFF00);
+const auto GREEN = Adafruit_NeoPixel::gamma32(0x00FF00);
+const auto LIGHT_BLUE = Adafruit_NeoPixel::gamma32(0x87CEFA);
+const auto BLUE = Adafruit_NeoPixel::gamma32(0x0000FF);
+const auto DARK_BLUE = Adafruit_NeoPixel::gamma32(0x0000AA);
+const auto INDIGO = Adafruit_NeoPixel::gamma32(0x8800FF);
+const auto PURPLE = Adafruit_NeoPixel::gamma32(0xFF00FF);
+const auto WHITE = Adafruit_NeoPixel::gamma32(0xFFFFFF);
+const auto GRAY = Adafruit_NeoPixel::gamma32(0x888888);
+const auto BLACK = Adafruit_NeoPixel::gamma32(0x000000);
+
+constexpr int MODE_L_STICK = 0;
+constexpr int MODE_D_PAD = 1;
+constexpr int MODE_MOUSE = 2;
+constexpr int MODE_SNAKE = 3;
+constexpr int MODE_COUNT = 4;
+const String MODE_NAMES[MODE_COUNT] = {
+  "L-STICK",
+  "D-PAD",
+  "MOUSE",
+  "SNAKE"
+};
+const uint32_t MODE_COLORS[MODE_COUNT] = {
+  // Left-stick
+  LIGHT_BLUE,
+  // D-pad
+  DARK_BLUE,
+  // "Magenta" for Mouse
+  PURPLE,
+  // Snake Game
+  GREEN
+};
 
 // helper to check memory usage
 extern "C" char *sbrk(int i);
@@ -26,7 +56,6 @@ constexpr int NEOPIXEL_MODE_BRIGHTNESS = 5;
 
 constexpr auto WII_UPDATE_DELAY = 2; // 500 Hz
 constexpr auto HID_UPDATE_DELAY = 8; // 125 Hz
-constexpr auto LED_UPDATE_DELAY = 16; // 60 Hz
 
 int mode = MODE_L_STICK;
 
@@ -35,8 +64,6 @@ Adafruit_NeoPixel neopixel_mode(1, PIN_A3, NEO_GRB + NEO_KHZ800);
 Adafruit_Debounce button_mode(PIN_A2, LOW);
 
 TwoWire *i2c = &Wire;
-
-auto screen = OLED_128x32(i2c);
 
 Accessory nunchuck;
 bool nunchuck_found = false;
@@ -52,9 +79,6 @@ constexpr uint8_t desc_hid_report[] = {
 Adafruit_USBD_HID usb_hid;
 hid_gamepad_report_t gamepad_report;
 
-auto led_8x8 = LED_8x8();
-auto rgb_13x9 = RGB_13x9();
-
 boolean nunchuck_present = false;
 boolean should_check_nunchuck = false;
 ulong last_nunchuck_check = 0;
@@ -68,21 +92,6 @@ void set_mode(const int new_mode) {
   neopixel_mode.setPixelColor(0, MODE_COLORS[mode]);
   neopixel_mode.show();
 
-  if (screen.is_attached()) {
-    screen.set_text(MODE_NAMES[mode], false);
-  }
-
-  if (led_8x8.is_attached()) {
-    led_8x8.set_text(MODE_NAMES[mode]);
-  }
-
-  if (rgb_13x9.is_attached()) {
-    rgb_13x9.clear();
-    if (mode == MODE_SNAKE) {
-      rgb_13x9.reset_game();
-    }
-  }
-
   Serial.printf("Changed mode to %s\n", MODE_NAMES[mode].c_str());
   Serial.printf("Free RAM: %d bytes\n", mem_free());
 }
@@ -92,10 +101,6 @@ void next_mode() {
   if (new_mode == MODE_MOUSE) {
     // TODO: remove this skip when mouse mode is implemented
     Serial.println("Mouse mode not yet implemented.");
-    new_mode++;
-  }
-  if (new_mode == MODE_SNAKE && !(rgb_13x9.is_attached())) {
-    Serial.println("Can't play game without the RGB LED matrix plugged in.");
     new_mode++;
   }
   if (new_mode >= MODE_COUNT) {
@@ -262,22 +267,6 @@ void setup() {
 
   check_nunchuck();
 
-  screen.begin();
-  if (screen.is_attached()) {
-    screen.set_text(MODE_NAMES[mode]);
-  }
-
-  rgb_13x9.begin();
-  if (rgb_13x9.is_attached()) {
-    mode = MODE_SNAKE;
-  }
-  set_mode(mode);
-
-  led_8x8.begin();
-  if (led_8x8.is_attached()) {
-    led_8x8.set_text(MODE_NAMES[mode]);
-  }
-
   srand(micros());
 
 #ifdef DEBUG
@@ -333,17 +322,5 @@ void loop() {
       update_usb_hid();
     }
     last_hid_update = now;
-  }
-
-  if (screen.is_attached()) {
-    screen.update(now);
-  }
-
-  if (led_8x8.is_attached()) {
-    led_8x8.update(now);
-  }
-
-  if (rgb_13x9.is_attached()) {
-    rgb_13x9.update(now, mode, nunchuck);
   }
 }
