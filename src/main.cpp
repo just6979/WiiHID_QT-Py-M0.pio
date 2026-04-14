@@ -6,7 +6,7 @@
 #include <cmath>
 #include <WiiChuck.h>
 
-// #define SHOW_NUNCHUCK
+#define SHOW_NUNCHUCK 1
 
 const auto RED = Adafruit_NeoPixel::gamma32(0xFF0000);
 const auto ORANGE = Adafruit_NeoPixel::gamma32(0xFF8800);
@@ -162,18 +162,6 @@ bool update_wii_acc() {
     accel_z = nunchuck.getAccelZ();
     button_z = nunchuck.getButtonZ();
     button_c = nunchuck.getButtonC();
-#if DEBUG && SHOW_NUNCHUCK
-    Serial.printf(
-      "J[%4d,%4d];A[%3d,%3d,%3d];B[%s%s]\n",
-      stick_x,
-      stick_y,
-      accel_x,
-      accel_y,
-      accel_y,
-      button_z ? "Z" : " ",
-      button_c ? "C" : " "
-    );
-#endif
   }
   return true;
 }
@@ -325,5 +313,19 @@ void loop() {
       update_usb_hid();
     }
     last_hid_update = now;
+
+#if DEBUG && SHOW_NUNCHUCK
+    Serial.printf(
+      "J[%4d,%4d];A[%3d,%3d,%3d];B[%s%s]\n",
+      stick_x,
+      stick_y,
+      accel_x,
+      accel_y,
+      accel_z,
+      button_z ? "Z" : " ",
+      button_c ? "C" : " "
+    );
+#endif
+
   }
 }
